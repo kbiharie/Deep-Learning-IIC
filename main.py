@@ -295,5 +295,6 @@ if __name__ == "__main__":
     # transform_single_image("../datasets/val2017/000000001532.jpg")
     # create_model()
     # prep_data.cocostuff3_write_filenames()
-    create_model()
-    test()
+    # create_model()
+    # test()
+    prep_data.cocostuff_crop()

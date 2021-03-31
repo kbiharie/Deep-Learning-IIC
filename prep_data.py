@@ -1,5 +1,8 @@
 import os
 import json
+import PIL.Image
+import glob
+import math
 
 def cocostuff_ids(data):
 
@@ -74,6 +77,29 @@ def cocostuff_clean(ids, ann, img_dir):
         if os.path.exists(file_to_remove):
             os.remove(file_to_remove)
 
+def cocostuff_crop():
+    folders = ["../datasets/train2017/", "../datasets/val2017/"]
+    folders = ["../datasets/train2017/"]
+
+    for folder in folders:
+        size = 128
+        count = 0
+        for infile in glob.glob(folder + "*.jpg"):
+            im = PIL.Image.open(infile)
+            width, height = im.size
+            # Crop the center of the image
+            im = im.resize((math.ceil(width*2/3), math.ceil(height*2/3)), PIL.Image.ANTIALIAS)
+            width, height = im.size  # Get dimensions
+            left = (width - size) / 2
+            top = (height - size) / 2
+            right = (width + size) / 2
+            bottom = (height + size) / 2
+            im = im.crop((left, top, right, bottom))
+            im.save(infile, "JPEG")
+            count += 1
+            if count % 1000 == 0:
+                print(count)
+        print(count)
 
 def test():
     with open("../annotations/stuff_val2017.json") as f:
