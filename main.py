@@ -26,9 +26,9 @@ def create_model():
     # Set parameters
     config = type('config', (object,), {})()
     # TODO: maybe precroppings allows for larger batch sizes?
-    config.dataloader_batch_sz = 32
+    config.dataloader_batch_sz = 16
     config.shuffle = True
-    config.filenames = "../datasets/filenames.json"
+    config.filenames = "../datasets/filenamescoco.json"
     config.jitter_brightness = 0.4
     config.jitter_contrast = 0.4
     config.jitter_saturation = 0.4
@@ -62,7 +62,7 @@ def create_model():
 
         # For every batch
         for step, (img1, img2) in enumerate(train_dataloader):
-            if step == 5:
+            if step == 3:
                 break
             print(step)
             net.module.zero_grad()
@@ -79,6 +79,7 @@ def create_model():
             avg_loss_no_lamb_batch = None
 
             loss, loss_no_lamb = loss_fn(x1_outs, x2_outs)
+            print(loss)
 
             loss.backward()
             optimizer.step()
@@ -93,7 +94,7 @@ def create_model():
 
         print(total_loss.item())
 
-    torch.save(net.state_dict(), "../models/model.pth")
+    # torch.save(net.state_dict(), "../models/model.pth")
     # img1, img2 = dataset.__getitem__(0)
     # train_dataloader.
     # imgs = torch.zeros(1, 3, 64, 64).to(torch.float32).cuda()
@@ -265,7 +266,7 @@ def loss_fn(x1_outs, x2_outs, all_affine2_to_1=None,
 
     current_norm = float(p_i_j.sum())
     p_i_j = p_i_j / current_norm
-    p_i_j = (p_i_j + p_i_j.t()) / 2
+    p_i_j = (p_i_j + p_i_j.t()) / 2.
 
     p_i_mat = p_i_j.sum(dim=1).unsqueeze(1)
     p_j_mat = p_i_j.sum(dim=0).unsqueeze(0)
@@ -295,6 +296,6 @@ if __name__ == "__main__":
     # transform_single_image("../datasets/val2017/000000001532.jpg")
     # create_model()
     # prep_data.cocostuff3_write_filenames()
-    # create_model()
+    create_model()
     # test()
-    prep_data.cocostuff_crop()
+    # prep_data.cocostuff_crop()
