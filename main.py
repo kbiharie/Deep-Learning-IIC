@@ -11,6 +11,8 @@ import json
 import sys
 import torch.optim
 import os.path
+import time
+import PIL.Image
 
 
 def transform_single_image(img_path):
@@ -27,7 +29,7 @@ def create_model():
     # Set parameters
     config = type('config', (object,), {})()
     # TODO: maybe precroppings allows for larger batch sizes?
-    config.dataloader_batch_sz = 64
+    config.dataloader_batch_sz = 120
     config.shuffle = True
     config.filenames = "../datasets/filenamescoco.json"
     config.jitter_brightness = 0.4
@@ -60,22 +62,23 @@ def create_model():
     for epoch in range(epochs):
         total_loss = 0
         total_loss_no_lamb = 0
-
+        start = time.time()
         # For every batch
         for step, (img1, img2) in enumerate(train_dataloader):
             if step == 20:
                 break
             print(step)
+            print(time.time() - start)
             net.module.zero_grad()
             n_imgs = img1.shape[0]
             x1_outs = net(img1.to(torch.float32))
             x2_outs = net(img2.to(torch.float32))
 
-            imgout = x1_outs.permute(0, 2, 3, 1)
+            # imgout = x1_outs.permute(0, 2, 3, 1)
             # imgout = imgout.numpy()
-            imgout = imgout.cpu().detach().numpy()
-            imgout = imgout * 255
-            imgout = imgout.astype(dtype="uint8")
+            # imgout = imgout.cpu().detach().numpy()
+            # imgout = imgout * 255
+            # imgout = imgout.astype(dtype="uint8")
 
             avg_loss_batch = None
             avg_loss_no_lamb_batch = None
@@ -86,6 +89,7 @@ def create_model():
 
             total_loss += loss
             total_loss_no_lamb += loss_no_lamb
+            start = time.time()
 
             # for i in range(n_imgs):
             #     window_name = 'image ' + str(i)
@@ -180,9 +184,8 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
         return len(self.data)
 
     def __getitem__(self, id):
+        start = time.time()
         image_path = self.data[id]["file"]
-        if not os.path.exists(image_path):
-            print(image_path)
         img1 = cv2.imread(image_path, cv2.IMREAD_COLOR).astype(np.uint8)
         x = img1.shape[1] / 2 - 128 / 2
         y = img1.shape[0] / 2 - 128 / 2
@@ -190,8 +193,9 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
         # create image pair and transform
 
         # image to gpu
-        img1 = torch.from_numpy(img1).cuda().permute(2, 0, 1)
+        img1 = torch.from_numpy(img1).permute(2, 0, 1).cuda()
         img2 = self.jitter_tf(img1)
+        print("loading image took", str(time.time() - start))
         return img1, img2
 
 
