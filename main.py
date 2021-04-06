@@ -27,7 +27,7 @@ def create_model():
     # Set parameters
     config = type('config', (object,), {})()
     # TODO: maybe precroppings allows for larger batch sizes?
-    config.dataloader_batch_sz = 16
+    config.dataloader_batch_sz = 64
     config.shuffle = True
     config.filenames = "../datasets/filenamescoco.json"
     config.jitter_brightness = 0.4
@@ -54,7 +54,7 @@ def create_model():
 
     optimizer = torch.optim.Adam(net.module.parameters(), lr=0.1)
 
-    epochs = 3
+    epochs = 5
 
     # For every epoch
     for epoch in range(epochs):
@@ -63,7 +63,7 @@ def create_model():
 
         # For every batch
         for step, (img1, img2) in enumerate(train_dataloader):
-            if step == 3:
+            if step == 20:
                 break
             print(step)
             net.module.zero_grad()
@@ -81,8 +81,6 @@ def create_model():
             avg_loss_no_lamb_batch = None
 
             loss, loss_no_lamb = loss_fn(x1_outs, x2_outs)
-            print(loss)
-
             loss.backward()
             optimizer.step()
 
