@@ -10,6 +10,7 @@ import prep_data
 import json
 import sys
 import torch.optim
+import os.path
 
 
 def transform_single_image(img_path):
@@ -182,6 +183,8 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
 
     def __getitem__(self, id):
         image_path = self.data[id]["file"]
+        if not os.path.exists(image_path):
+            print(image_path)
         img1 = cv2.imread(image_path, cv2.IMREAD_COLOR).astype(np.uint8)
         x = img1.shape[1] / 2 - 128 / 2
         y = img1.shape[0] / 2 - 128 / 2
