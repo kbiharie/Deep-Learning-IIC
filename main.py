@@ -47,7 +47,7 @@ def create_model():
                                                    drop_last=False)
 
     net = IICNet()
-    # net.cuda()
+    net.cuda()
     net = torch.nn.DataParallel(net)
     net.train()
 
@@ -71,8 +71,8 @@ def create_model():
             x2_outs = net(img2.to(torch.float32))
 
             imgout = x1_outs.permute(0, 2, 3, 1)
-            imgout = imgout.numpy()
-            # imgout = imgout.cpu().detach().numpy()
+            # imgout = imgout.numpy()
+            imgout = imgout.cpu().detach().numpy()
             imgout = imgout * 255
             imgout = imgout.astype(dtype="uint8")
 
