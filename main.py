@@ -29,7 +29,7 @@ def create_model():
     # Set parameters
     config = type('config', (object,), {})()
     # TODO: maybe precroppings allows for larger batch sizes?
-    config.dataloader_batch_sz = 120
+    config.dataloader_batch_sz = 32
     config.shuffle = True
     config.filenames = "../datasets/filenamescoco.json"
     config.jitter_brightness = 0.4
