@@ -201,8 +201,12 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
         start = time.time()
         image_path = self.data[id]["file"]
         img1 = cv2.imread(image_path, cv2.IMREAD_COLOR).astype(np.uint8)
-        x = img1.shape[1] / 2 - 128 / 2
-        y = img1.shape[0] / 2 - 128 / 2
+        cv2.resize(img1, dsize=None, fx=2/3, fy=2/3,
+                   interpolation=cv2.INTER_LINEAR)
+        x = np.random.randint(img1.shape[1] - 128)
+        y = np.random.randint(img1.shape[0] - 128)
+        # x = img1.shape[1] / 2 - 128 / 2
+        # y = img1.shape[0] / 2 - 128 / 2
         img1 = img1[int(y):int(y + 128), int(x):int(x+128)]
         # create image pair and transform
         img1 = PIL.Image.fromarray(img1.astype(np.uint8))
@@ -354,3 +358,4 @@ if __name__ == "__main__":
     create_model()
     # test()
     # prep_data.cocostuff_crop()
+    # prep_data.cocostuff_clean_with_json()
