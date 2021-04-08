@@ -33,15 +33,16 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
         # create image pair and transform
 
         # image to gpu
-        img1 = torch.from_numpy(img1).permute(2, 0, 1).cuda()
+        img1 = torch.from_numpy(img1).permute(2, 0, 1).to(torch.float32).cuda()
         img2 = self.jitter_tf(img1)
         print("loading image took", str(time.time() - start))
         return img1, img2
 
+
 def create_model():
     # Set parameters
     config = type('config', (object,), {})()
-    config.dataloader_batch_sz = 32
+    config.dataloader_batch_sz = 16
     config.shuffle = True
     config.filenames = "../datasets/filenamescoco.json"
     config.jitter_brightness = 0.4
@@ -67,4 +68,7 @@ def create_model():
             if step == 20:
                 break
             print(step)
-            print("epoch took", time.time() - start, "s")
+        print("epoch took", time.time() - start, "s")
+
+if __name__ == "__main__":
+    create_model()

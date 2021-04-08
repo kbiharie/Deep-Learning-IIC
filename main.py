@@ -36,6 +36,7 @@ def create_model():
     config.jitter_contrast = 0.4
     config.jitter_saturation = 0.4
     config.jitter_hue = 0.125
+    config.flip_p = 0.5
 
     # Create train_imgs
 
@@ -46,7 +47,7 @@ def create_model():
     train_dataloader = torch.utils.data.DataLoader(dataset,
                                                    batch_size=config.dataloader_batch_sz,
                                                    shuffle=config.shuffle,
-                                                   num_workers=0,
+                                                   num_workers=4,
                                                    drop_last=False)
 
     net = IICNet()
@@ -58,21 +59,32 @@ def create_model():
 
     epochs = 5
 
+    all_losses = []
+
     # For every epoch
     for epoch in range(epochs):
         total_loss = 0
         total_loss_no_lamb = 0
-        start = time.time()
         # For every batch
-        for step, (img1, img2) in enumerate(train_dataloader):
-            if step == 20:
+        for step, (img1, img2, flip) in enumerate(train_dataloader):
+            if step == 3:
                 break
             print(step)
-            print(time.time() - start)
+            img1 = img1.cuda()
+            img2 = img2.cuda()
+
+            img1 = sobel(img1)
+            img2 = sobel(img2)
+
             net.module.zero_grad()
             n_imgs = img1.shape[0]
-            x1_outs = net(img1.to(torch.float32))
-            x2_outs = net(img2.to(torch.float32))
+            x1_outs = net(img1)
+            x2_outs = net(img2)
+
+            # TODO: is this the same dimension?
+            for i in range(x2_outs.shape[0]):
+                if flip[i]:
+                    x2_outs[i] = torch.flip(x2_outs[i], dims=[1])
 
             # imgout = x1_outs.permute(0, 2, 3, 1)
             # imgout = imgout.numpy()
@@ -95,6 +107,7 @@ def create_model():
             #     window_name = 'image ' + str(i)
             #     cv2.imshow(window_name, imgout[i])
             #     cv2.waitKey(0)
+        all_losses.append(total_loss)
 
         print(total_loss.item())
 
@@ -179,6 +192,7 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
                                                             contrast=config.jitter_contrast,
                                                             saturation=config.jitter_saturation,
                                                             hue=config.jitter_hue)
+        self.flip_p = config.flip_p
 
     def __len__(self):
         return len(self.data)
@@ -191,18 +205,31 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
         y = img1.shape[0] / 2 - 128 / 2
         img1 = img1[int(y):int(y + 128), int(x):int(x+128)]
         # create image pair and transform
-
-        # image to gpu
-        img1 = torch.from_numpy(img1).permute(2, 0, 1).cuda()
+        img1 = PIL.Image.fromarray(img1.astype(np.uint8))
         img2 = self.jitter_tf(img1)
-        print("loading image took", str(time.time() - start))
-        return img1, img2
+        img1 = np.array(img1)
+        img2 = np.array(img2)
+        img1 = grey_image(img1)
+        img2 = grey_image(img2)
+        img1 = img1.astype(np.float32) / 255.
+        img2 = img2.astype(np.float32) / 255.
+        # image to gpu
+        img1 = torch.from_numpy(img1).permute(2, 0, 1).to(torch.float32)
+        img2 = torch.from_numpy(img2).permute(2, 0, 1).to(torch.float32)
+
+        # flip
+        flip = False
+        if np.random.rand() <= self.flip_p:
+            img2 = torch.flip(img2, dims=[2])
+            flip = True
+        # print(time.time() - start)
+        return img1, img2, flip
 
 
 class IICNet(torch.nn.Module):
     def __init__(self):
         super(IICNet, self).__init__()
-        self.in_channels = 3
+        self.in_channels = 5
         self.pad = 1
         self.conv_size = 3
         self.out_channels = 3
@@ -290,6 +317,28 @@ def loss_fn(x1_outs, x2_outs, all_affine2_to_1=None,
                       torch.log(p_j_mat))).sum()
 
     return loss, loss_no_lamb
+
+def grey_image(img):
+    return np.concatenate([img, cv2.cvtColor(img, cv2.COLOR_RGB2GRAY).reshape(img.shape[0], img.shape[1], 1)], axis=2)
+
+def sobel(imgs):
+    grey_imgs = imgs[:, 3, :, :].unsqueeze(1)
+    rgb_imgs = imgs[:, :3, :, :]
+
+    sobelxweights = np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]])
+    convx = torch.nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=1, bias=False)
+    convx.weight = torch.nn.Parameter(
+    torch.Tensor(sobelxweights).cuda().float().unsqueeze(0).unsqueeze(0))
+    dx = convx(torch.autograd.Variable(grey_imgs)).data
+
+    sobelyweights = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
+    convy = torch.nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=1, bias=False)
+    convy.weight = torch.nn.Parameter(
+        torch.from_numpy(sobelyweights).cuda().float().unsqueeze(0).unsqueeze(0))
+    dy = convy(torch.autograd.Variable(grey_imgs)).data
+
+    return torch.cat([rgb_imgs, dx, dy], dim=1)
+
 
 if __name__ == "__main__":
     # with open("../annotations/stuff_train2017.json") as f:
