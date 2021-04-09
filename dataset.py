@@ -77,13 +77,12 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
         return img, torch.from_numpy(label), torch.from_numpy(mask.astype(np.uint8))
 
     def __getitem__(self, id):
-        print("image loading")
         image_path = self.data[id]["file"]
         image_path = "test.jpg"
         if not os.path.exists(image_path):
             print(image_path)
         label_path = get_label_path(image_path)
-        print(image_path, label_path)
+        # print(image_path, label_path)
         img = cv2.imread(image_path, cv2.IMREAD_COLOR).astype(np.uint8)
         label = cv2.imread(label_path, cv2.IMREAD_GRAYSCALE).astype(np.uint32)
         img = img.astype(np.float32)
