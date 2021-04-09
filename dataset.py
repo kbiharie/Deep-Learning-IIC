@@ -92,6 +92,9 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
                            fy=2 / 3,
                            interpolation=cv2.INTER_NEAREST)
 
+        if img.shape[1] < 128 or img.shape[0] < 128:
+            print(image_path)
+
         if self.purpose == "train":
             return self._prepare_train(img, label)
         elif self.purpose == "test":
