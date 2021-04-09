@@ -19,6 +19,7 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
                                                             hue=config.jitter_hue)
         self.flip_p = config.flip_p
         self.purpose = purpose
+        self.random_crop = config.random_crop
 
     def __len__(self):
         return len(self.data)
@@ -26,8 +27,12 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
     def _prepare_train(self, img, label):
         start = time.time()
 
-        x = np.random.randint(img.shape[1] - 128)
-        y = np.random.randint(img.shape[0] - 128)
+        if self.random_crop:
+            x = np.random.randint(img.shape[1] - 128)
+            y = np.random.randint(img.shape[0] - 128)
+        else:
+            x = img.shape[1] / 2 - 64
+            y = img.shape[0] / 2 - 64
         img = img[int(y):int(y + 128), int(x):int(x + 128)]
         label = label[int(y):int(y + 128), int(x):int(x + 128)]
 
@@ -93,10 +98,11 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
 
 
 def _filter_label(label):
+    # print(label)
     new_label_map = -1 * np.ones(label.shape, dtype=label.dtype)
-    sky_labels = [106, 157]
-    ground_labels = [111, 125, 126, 136, 140, 144, 145, 147, 149, 154, 159]
-    plant_labels = [94, 97, 119, 124, 129, 134, 142, 163, 169]
+    sky_labels = [105, 156]
+    ground_labels = [110, 124, 125, 135, 139, 143, 144, 146, 148, 153, 158]
+    plant_labels = [93, 96, 118, 123, 128, 133, 141, 162, 168]
     new_label_map[np.isin(label, sky_labels)] = 0
     new_label_map[np.isin(label, ground_labels)] = 1
     new_label_map[np.isin(label, plant_labels)] = 2

@@ -3,16 +3,17 @@ from configuration import *
 from dataset import *
 
 
-def display_dataset_image(image):
+def display_dataset_image(image, mask):
+    if image.shape[0] == 4:
+        image = image[:3, :, :]
+    masked = image * mask.view(1, image.shape[1], image.shape[2])
     image = image.permute(1, 2, 0)
-    image = image.numpy()
-    if image.shape[2] == 4:
-        image = image[:, :, :3]
-    return image
+    masked = masked.permute(1, 2, 0)
+    return image, masked
 
 
-def display_output_image_and_output(image):
-    in_display = display_dataset_image(image)
+def display_output_image_and_output(image, mask):
+    in_display, masked_display = display_dataset_image(image, mask)
 
     config = create_config()
     model_path = "../datasets/models/coco3.pth"
@@ -28,12 +29,17 @@ def display_output_image_and_output(image):
     imgs[0] = image
     imgs = sobel(imgs)
 
+    mask = mask.cuda()
+
     out_display = net(imgs)
     out_display = out_display[0]
+    out_display = out_display * mask
     out_display = out_display.permute(1, 2, 0)
     out_display = out_display.cpu().detach().numpy()
 
-    display = np.concatenate((in_display, out_display), axis=1)
+    # TODO: take arg max of out_display
+
+    display = np.concatenate((in_display, masked_display, out_display), axis=1)
 
     cv2.imshow("window", display)
     cv2.waitKey(0)

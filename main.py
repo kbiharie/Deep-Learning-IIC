@@ -69,6 +69,7 @@ def create_model(model_name):
             print(step)
             img1 = img1.cuda()
             img2 = img2.cuda()
+            mask = mask.cuda()
 
             img1 = sobel(img1)
             img2 = sobel(img2)
@@ -86,7 +87,7 @@ def create_model(model_name):
             avg_loss_batch = None
             avg_loss_no_lamb_batch = None
 
-            loss, loss_no_lamb = loss_fn(x1_outs, x2_outs)
+            loss, loss_no_lamb = loss_fn(x1_outs, x2_outs, all_mask_img1=mask)
             loss.backward()
             optimizer.step()
 
@@ -112,6 +113,10 @@ def loss_fn(x1_outs, x2_outs, all_affine2_to_1=None,
                           half_T_side_sparse_max=0):
     #TODO: perform inverse affine transformation
     x2_outs_inv = x2_outs
+
+    all_mask_img1 = all_mask_img1.view(x1_outs.shape[0], 1, x1_outs.shape[2], x1_outs.shape[3])
+    x1_outs = x1_outs * all_mask_img1
+    x2_outs_inv = x2_outs_inv * all_mask_img1
 
     x1_outs = x1_outs.permute(1, 0, 2, 3).contiguous()
     x2_outs_inv = x2_outs_inv.permute(1, 0, 2, 3).contiguous()
@@ -144,9 +149,9 @@ def loss_fn(x1_outs, x2_outs, all_affine2_to_1=None,
 def display_image():
     config = create_config()
     dataset = CocoStuff3Dataset(config, "train")
-    for i in range(5):
+    for i in range(10, len(dataset)):
         img1, img2, flip, mask = dataset.__getitem__(i)
-        display_output_image_and_output(img1)
+        display_output_image_and_output(img1, mask)
 
 
 if __name__ == "__main__":
@@ -160,7 +165,7 @@ if __name__ == "__main__":
     # transform_single_image("../datasets/val2017/000000001532.jpg")
     # create_model()
     # prep_data.cocostuff3_write_filenames()
-    create_model("coco3")
+    # create_model("coco3")
     # prep_data.cocostuff_crop()
     # prep_data.cocostuff_clean_with_json(True)
-    # display_image()
+    display_image()

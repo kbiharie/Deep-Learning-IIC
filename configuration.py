@@ -20,4 +20,6 @@ def create_config():
     config.conv_size = 3
     config.out_channels = 3
 
+    config.random_crop = True
+
     return config
