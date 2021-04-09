@@ -51,7 +51,7 @@ def create_model(model_name):
 
     optimizer = torch.optim.Adam(net.module.parameters(), lr=0.1)
 
-    epochs = 2
+    epochs = 1
     all_losses = []
 
     # For every epoch
@@ -64,7 +64,7 @@ def create_model(model_name):
             continue
         # For every batch
         for step, (img1, img2, flip, mask) in enumerate(train_dataloader):
-            if step == 10:
+            if step == 3:
                 break
             print(step)
             img1 = img1.cuda()

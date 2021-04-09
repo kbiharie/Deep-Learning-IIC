@@ -33,7 +33,7 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
 
         _, mask_img1 = _filter_label(label)
 
-        mask_img1 = torch.from_numpy(mask_img1.astype(np.uint8)).cuda()
+        mask_img1 = torch.from_numpy(mask_img1.astype(np.uint8))
 
         # create image pair and transform
         img = PIL.Image.fromarray(img.astype(np.uint8))
@@ -72,7 +72,7 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
 
     def __getitem__(self, id):
         image_path = self.data[id]["file"]
-        label_path = image_path.replace("train2017", "traingt2017").replace("val2017", "valgt2017")
+        label_path = get_label_path(image_path)
         img = cv2.imread(image_path, cv2.IMREAD_COLOR).astype(np.uint8)
         label = cv2.imread(label_path, cv2.IMREAD_GRAYSCALE).astype(np.uint32)
         img = img.astype(np.float32)
@@ -97,9 +97,9 @@ def _filter_label(label):
     sky_labels = [106, 157]
     ground_labels = [111, 125, 126, 136, 140, 144, 145, 147, 149, 154, 159]
     plant_labels = [94, 97, 119, 124, 129, 134, 142, 163, 169]
-    new_label_map[label in sky_labels] = 0
-    new_label_map[label == ground_labels] = 1
-    new_label_map[label == plant_labels] = 2
+    new_label_map[np.isin(label, sky_labels)] = 0
+    new_label_map[np.isin(label, ground_labels)] = 1
+    new_label_map[np.isin(label, plant_labels)] = 2
 
     mask = (new_label_map >= 0)
 
@@ -127,3 +127,6 @@ def sobel(imgs):
     dy = convy(torch.autograd.Variable(grey_imgs)).data
 
     return torch.cat([rgb_imgs, dx, dy], dim=1)
+
+def get_label_path(img_path):
+    return img_path.replace("train2017", "traingt2017").replace("val2017", "valgt2017").replace(".jpg", ".png")
