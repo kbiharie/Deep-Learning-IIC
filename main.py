@@ -13,6 +13,7 @@ import torch.optim
 import os.path
 import time
 import PIL.Image
+from display import *
 from model import *
 from configuration import *
 from dataset import *
@@ -50,16 +51,20 @@ def create_model(model_name):
 
     optimizer = torch.optim.Adam(net.module.parameters(), lr=0.1)
 
-    epochs = 5
+    epochs = 2
     all_losses = []
 
     # For every epoch
     for epoch in range(epochs):
         total_loss = 0
         total_loss_no_lamb = 0
+        epoch_model_path = "../datasets/models/" + model_name + "_epoch_" + str(epoch) + ".pth"
+        if os.path.exists(epoch_model_path) and config.existing_model:
+            net.load_state_dict(torch.load(epoch_model_path))
+            continue
         # For every batch
         for step, (img1, img2, flip) in enumerate(train_dataloader):
-            if step == 3:
+            if step == 10:
                 break
             print(step)
             img1 = img1.cuda()
@@ -78,12 +83,6 @@ def create_model(model_name):
                 if flip[i]:
                     x2_outs[i] = torch.flip(x2_outs[i], dims=[1])
 
-            # imgout = x1_outs.permute(0, 2, 3, 1)
-            # imgout = imgout.numpy()
-            # imgout = imgout.cpu().detach().numpy()
-            # imgout = imgout * 255
-            # imgout = imgout.astype(dtype="uint8")
-
             avg_loss_batch = None
             avg_loss_no_lamb_batch = None
 
@@ -93,89 +92,13 @@ def create_model(model_name):
 
             total_loss += loss
             total_loss_no_lamb += loss_no_lamb
-            start = time.time()
 
-            # for i in range(n_imgs):
-            #     window_name = 'image ' + str(i)
-            #     cv2.imshow(window_name, imgout[i])
-            #     cv2.waitKey(0)
         all_losses.append(total_loss)
-        torch.save(net.state_dict(), "../datasets/models/" + model_name + "_epoch" + str(epoch) + ".pth")
+        torch.save(net.state_dict(), epoch_model_path)
 
         print(total_loss.item())
 
     torch.save(net.state_dict(), "../datasets/models/" + model_name + ".pth")
-
-    # torch.save(net.state_dict(), "../models/model.pth")
-    # img1, img2 = dataset.__getitem__(0)
-    # train_dataloader.
-    # imgs = torch.zeros(1, 3, 64, 64).to(torch.float32).cuda()
-    # imgs[0, :, :, :] = img1
-    # net = IICNet()
-    # net.cuda()
-    # net = torch.nn.DataParallel(net)
-    # x_outs = net(imgs)
-    #
-    # imgout = x_outs.permute(0,2,3,1)
-    # imgout = imgout.cpu().detach().numpy()
-    # imgout = imgout[0] * 255
-    # img1, img2 = img1.permute(1, 2, 0), img2.permute(1, 2, 0)
-    # img1, img2 = np.array(img1.cpu()), np.array(img2.cpu())
-    #
-    # imgout = imgout.astype(dtype="uint8")
-    # imgout = cv2.copyMakeBorder(imgout, 0, 34, 0, 34, cv2.BORDER_CONSTANT, value=[255,255,255])
-    #
-    # images = np.concatenate((img1, img2, imgout), axis=1)
-    # window_name = 'image'
-    # cv2.imshow(window_name, images)
-    # cv2.waitKey(0)
-
-def test():
-    net = IICNet(create_config())
-    net.cuda()
-    net = torch.nn.DataParallel(net)
-    net.load_state_dict(torch.load("../models/model.pt"))
-    net.eval()
-
-    # Set parameters
-    config = type('config', (object,), {})()
-    # TODO: maybe precroppings allows for larger batch sizes?
-    config.dataloader_batch_sz = 32
-    config.shuffle = True
-    config.filenames = "../datasets/filenamescoco.json"
-    config.jitter_brightness = 0.4
-    config.jitter_contrast = 0.4
-    config.jitter_saturation = 0.4
-    config.jitter_hue = 0.125
-
-    # Create train_imgs
-
-    # Create dataset
-    dataset = CocoStuff3Dataset(config)
-
-    # Create data loader
-    train_dataloader = torch.utils.data.DataLoader(dataset,
-                                                   batch_size=config.dataloader_batch_sz,
-                                                   shuffle=config.shuffle,
-                                                   num_workers=0,
-                                                   drop_last=False)
-
-    for step, (img1, img2) in enumerate(train_dataloader):
-        x_outs = net(img1.to(torch.float32))
-
-        imgout = x_outs.permute(0, 2, 3, 1)
-        imgout = imgout.cpu().detach().numpy()
-        imgout = imgout[0] * 255
-        # img1, img2 = img1.permute(1, 2, 0), img2.permute(1, 2, 0)
-        # img1, img2 = np.array(img1.cpu()), np.array(img2.cpu())
-
-        imgout = imgout.astype(dtype="uint8")
-
-        # images = np.concatenate((img1, img2, imgout), axis=1)
-        window_name = 'image'
-        cv2.imshow(window_name, imgout)
-        cv2.waitKey(0)
-        break
 
 
 def evaluate(model_name):
@@ -218,7 +141,12 @@ def loss_fn(x1_outs, x2_outs, all_affine2_to_1=None,
 
     return loss, loss_no_lamb
 
-
+def display_image():
+    config = create_config()
+    dataset = CocoStuff3Dataset(config)
+    for i in range(5):
+        img1, img2, flip = dataset.__getitem__(i)
+        display_output_image_and_output(img1)
 
 
 if __name__ == "__main__":
@@ -233,6 +161,6 @@ if __name__ == "__main__":
     # create_model()
     # prep_data.cocostuff3_write_filenames()
     create_model("coco3")
-    # test()
     # prep_data.cocostuff_crop()
     # prep_data.cocostuff_clean_with_json(True)
+    # display_image()

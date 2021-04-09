@@ -147,46 +147,54 @@ def test():
 
     image_ids = []
 
-    for img in data["annotations"]:
-        image_ids.append(img["image_id"])
+    # for img in data["annotations"]:
+    #     image_ids.append(img["image_id"])
 
     image_ids = list(set(image_ids))
     image_ids.sort()
 
     categories = {}
 
+    supers = {"sky": [], "plant": [], "ground": []}
+    cats = []
+
     for cat in data["categories"]:
         categories[cat["id"]] = cat["name"]
+        print(cat)
+        if cat["supercategory"] in supers:
+            supers[cat["supercategory"]].append(cat["id"])
+        cats.append(cat["id"])
+    print(supers)
 
-    things_category = 183
-
-    areas = {}
-
-    for img in data["annotations"]:
-        if img["image_id"] not in areas:
-            areas[img["image_id"]] = {}
-            areas[img["image_id"]]["sum"] = 0
-            areas[img["image_id"]]["total"] = 1
-        if img["category_id"] != things_category:
-            areas[img["image_id"]]["sum"] += img["area"]
-
-    min_len = 1000
-    small = 0
-    for img in data["images"]:
-        if img["id"] not in areas:
-            areas[img["id"]] = {}
-            areas[img["id"]]["sum"] = 0
-        areas[img["id"]]["total"] = img["height"] * img["width"]
-        min_len = min(min_len, img["height"])
-        min_len = min(min_len, img["width"])
-        if img["height"] < 192 or img["width"] < 192:
-            small += 1
-    print(small)
-
-    print(min_len)
-
-    count = 0
-    for id in areas:
-        if areas[id]["sum"] / areas[id]["total"] > 0.75:
-            count += 1
-    print(count)
+    # things_category = 183
+    #
+    # areas = {}
+    #
+    # for img in data["annotations"]:
+    #     if img["image_id"] not in areas:
+    #         areas[img["image_id"]] = {}
+    #         areas[img["image_id"]]["sum"] = 0
+    #         areas[img["image_id"]]["total"] = 1
+    #     if img["category_id"] != things_category:
+    #         areas[img["image_id"]]["sum"] += img["area"]
+    #
+    # min_len = 1000
+    # small = 0
+    # for img in data["images"]:
+    #     if img["id"] not in areas:
+    #         areas[img["id"]] = {}
+    #         areas[img["id"]]["sum"] = 0
+    #     areas[img["id"]]["total"] = img["height"] * img["width"]
+    #     min_len = min(min_len, img["height"])
+    #     min_len = min(min_len, img["width"])
+    #     if img["height"] < 192 or img["width"] < 192:
+    #         small += 1
+    # print(small)
+    #
+    # print(min_len)
+    #
+    # count = 0
+    # for id in areas:
+    #     if areas[id]["sum"] / areas[id]["total"] > 0.75:
+    #         count += 1
+    # print(count)

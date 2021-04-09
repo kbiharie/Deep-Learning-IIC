@@ -6,6 +6,7 @@ def create_config():
     config.dataloader_batch_sz = 32
     config.shuffle = True
     config.filenames = "../datasets/filenamescoco.json"
+    config.existing_model = True
 
     config.jitter_brightness = 0.4
     config.jitter_contrast = 0.4
