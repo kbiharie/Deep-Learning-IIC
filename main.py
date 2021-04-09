@@ -25,7 +25,7 @@ def transform_single_image(img_path):
     cv2.waitKey(0)
 
 
-def create_model():
+def create_model(model_name):
     # Set parameters
     config = type('config', (object,), {})()
     # TODO: maybe precroppings allows for larger batch sizes?
@@ -39,7 +39,6 @@ def create_model():
     config.flip_p = 0.5
 
     # Create train_imgs
-
     # Create dataset
     dataset = CocoStuff3Dataset(config)
 
@@ -108,8 +107,11 @@ def create_model():
             #     cv2.imshow(window_name, imgout[i])
             #     cv2.waitKey(0)
         all_losses.append(total_loss)
+        torch.save(net.state_dict(), "../datasets/models/" + model_name + "_epoch" + str(epoch) + ".pth")
 
         print(total_loss.item())
+
+    torch.save(net.state_dict(), "../datasets/models/" + model_name + ".pth")
 
     # torch.save(net.state_dict(), "../models/model.pth")
     # img1, img2 = dataset.__getitem__(0)
@@ -181,6 +183,10 @@ def test():
         cv2.imshow(window_name, imgout)
         cv2.waitKey(0)
         break
+
+
+def evaluate(model_name):
+    print("evaluating")
 
 class CocoStuff3Dataset(torch.utils.data.Dataset):
 
@@ -355,7 +361,7 @@ if __name__ == "__main__":
     # transform_single_image("../datasets/val2017/000000001532.jpg")
     # create_model()
     # prep_data.cocostuff3_write_filenames()
-    create_model()
+    create_model("coco3")
     # test()
     # prep_data.cocostuff_crop()
-    # prep_data.cocostuff_clean_with_json()
+    # prep_data.cocostuff_clean_with_json(True)

@@ -101,18 +101,24 @@ def cocostuff_crop():
                 print(count)
         print(count)
 
-def cocostuff_clean_with_json():
+def cocostuff_clean_with_json(groundtruth=False):
     with open("../datasets/filenamescoco.json") as f:
         filenames = json.load(f)
     count = 0
     paths = []
     for image in filenames:
-        paths.append(image["file"])
+        if groundtruth:
+            paths.append(image["file"]
+                         .replace("train2017", "traingt2017")
+                         .replace("val2017", "valgt2017")
+                         .replace(".jpg", ".png"))
+        else:
+            paths.append(image["file"])
     files_to_remove = []
 
-    folders = ["../datasets/train2017/", "../datasets/val2017/"]
+    folders = ["../datasets/traingt2017/", "../datasets/valgt2017/"]
     for folder in folders:
-        for path in glob.glob(folder + "*.jpg"):
+        for path in glob.glob(folder + "*.png"):
             path = path.replace("\\", "/")
             if path not in paths:
                 files_to_remove.append(path)
