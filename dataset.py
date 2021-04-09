@@ -96,11 +96,13 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
             print(image_path)
 
         if self.purpose == "train":
-            return self._prepare_train(img, label)
+            output = self._prepare_train(img, label)
         elif self.purpose == "test":
-            return self._prepare_test(img, label)
+            output = self._prepare_test(img, label)
         else:
             raise NotImplementedError("Type is not train or test.")
+        print("image loaded")
+        return output
 
 
 def _filter_label(label):
