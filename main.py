@@ -51,22 +51,28 @@ def create_model(model_name):
 
     optimizer = torch.optim.Adam(net.module.parameters(), lr=0.1)
 
-    epochs = 1
+    epochs = 5
     all_losses = []
+
+    log_file = time.strftime("../datasets/logs/%Y_%m_%d-%H_%M_%S_log.json")
+
+    log = []
+    with open(log_file,"w") as w:
+        json.dump(log, w)
 
     # For every epoch
     for epoch in range(epochs):
+        print("epoch", epoch)
         total_loss = 0
         total_loss_no_lamb = 0
+        start_time = time.time()
         epoch_model_path = "../datasets/models/" + model_name + "_epoch_" + str(epoch) + ".pth"
         if os.path.exists(epoch_model_path) and config.existing_model:
             net.load_state_dict(torch.load(epoch_model_path))
             continue
         # For every batch
         for step, (img1, img2, flip, mask) in enumerate(train_dataloader):
-            if step == 3:
-                break
-            print(step)
+            print("batch", step)
             img1 = img1.cuda()
             img2 = img2.cuda()
             mask = mask.cuda()
@@ -93,9 +99,15 @@ def create_model(model_name):
 
             total_loss += loss
             total_loss_no_lamb += loss_no_lamb
-
+        to_log = {"type": "epoch", "loss": total_loss.item(), "epoch": epoch, "duration": time.time() - start_time}
+        log.append({"type": "epoch", "loss": total_loss.item(), "epoch": epoch, "duration": time.time() - start_time})
         all_losses.append(total_loss)
         torch.save(net.state_dict(), epoch_model_path)
+        with open(log_file, "r") as f:
+            old_log = json.load(f)
+        old_log.append(to_log)
+        with open(log_file, "w") as w:
+            json.dump(old_log, w)
 
         print(total_loss.item())
 
@@ -165,7 +177,7 @@ if __name__ == "__main__":
     # transform_single_image("../datasets/val2017/000000001532.jpg")
     # create_model()
     # prep_data.cocostuff3_write_filenames()
-    # create_model("coco3")
+    create_model("coco3")
     # prep_data.cocostuff_crop()
     # prep_data.cocostuff_clean_with_json(True)
-    display_image()
+    # display_image()
