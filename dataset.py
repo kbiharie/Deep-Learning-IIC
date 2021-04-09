@@ -5,6 +5,7 @@ import torchvision
 import cv2
 import PIL
 import time
+import os
 
 
 class CocoStuff3Dataset(torch.utils.data.Dataset):
@@ -77,6 +78,8 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
 
     def __getitem__(self, id):
         image_path = self.data[id]["file"]
+        if not os.path.exists(image_path):
+            print(image_path)
         label_path = get_label_path(image_path)
         img = cv2.imread(image_path, cv2.IMREAD_COLOR).astype(np.uint8)
         label = cv2.imread(label_path, cv2.IMREAD_GRAYSCALE).astype(np.uint32)
