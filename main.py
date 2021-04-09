@@ -41,7 +41,7 @@ def create_model(model_name):
     train_dataloader = torch.utils.data.DataLoader(dataset,
                                                    batch_size=config.dataloader_batch_sz,
                                                    shuffle=config.shuffle,
-                                                   num_workers=4,
+                                                   num_workers=config.num_workers,
                                                    drop_last=False)
 
     net = IICNet(config)
@@ -102,9 +102,9 @@ def create_model(model_name):
             batch_time = time.time()
 
             # TODO: is this the same dimension?
-            # for i in range(x2_outs.shape[0]):
-            #     if flip[i]:
-            #         x2_outs[i] = torch.flip(x2_outs[i], dims=[1])
+            for i in range(x2_outs.shape[0]):
+                if flip[i]:
+                    x2_outs[i] = torch.flip(x2_outs[i], dims=[1])
 
             avg_loss_batch = None
             avg_loss_no_lamb_batch = None
@@ -120,8 +120,8 @@ def create_model(model_name):
             # print(time.time() - batch_time)
             # batch_time = time.time()
             #
-            # loss.backward()
-            # optimizer.step()
+            loss.backward()
+            optimizer.step()
             #
             # print(time.time() - batch_time)
             #
@@ -153,40 +153,38 @@ def loss_fn(x1_outs, x2_outs, all_affine2_to_1=None,
                           half_T_side_sparse_min=0,
                           half_T_side_sparse_max=0):
     #TODO: perform inverse affine transformation
-    # x2_outs_inv = x2_outs
-    #
-    # all_mask_img1 = all_mask_img1.view(x1_outs.shape[0], 1, x1_outs.shape[2], x1_outs.shape[3])
-    # x1_outs = x1_outs * all_mask_img1
-    # x2_outs_inv = x2_outs_inv * all_mask_img1
-    #
-    # x1_outs = x1_outs.permute(1, 0, 2, 3).contiguous()
-    # x2_outs_inv = x2_outs_inv.permute(1, 0, 2, 3).contiguous()
-    #
-    # p_i_j = torch.nn.functional.conv2d(x1_outs, weight=x2_outs_inv,
-    #                                    padding=(half_T_side_dense, half_T_side_dense))
-    # p_i_j = p_i_j.sum(dim=2, keepdim=False).sum(dim=2, keepdim=False)
-    #
-    # current_norm = float(p_i_j.sum())
-    # p_i_j = p_i_j / current_norm
-    # p_i_j = (p_i_j + p_i_j.t()) / 2.
-    #
-    # p_i_mat = p_i_j.sum(dim=1).unsqueeze(1)
-    # p_j_mat = p_i_j.sum(dim=0).unsqueeze(0)
-    #
-    # EPS = sys.float_info.epsilon
-    #
-    # p_i_j[(p_i_j < EPS).data] = EPS
-    # p_i_mat[(p_i_mat < EPS).data] = EPS
-    # p_j_mat[(p_j_mat < EPS).data] = EPS
-    #
-    # loss = (-p_i_j * (torch.log(p_i_j) - lamb * torch.log(p_i_mat) -
-    #                   lamb * torch.log(p_j_mat))).sum()
-    #
-    # loss_no_lamb = (-p_i_j * (torch.log(p_i_j) - torch.log(p_i_mat) -
-    #                   torch.log(p_j_mat))).sum()
+    x2_outs_inv = x2_outs
 
-    loss = x1_outs[0,0,0,0]
-    loss_no_lamb = loss
+    all_mask_img1 = all_mask_img1.view(x1_outs.shape[0], 1, x1_outs.shape[2], x1_outs.shape[3])
+    x1_outs = x1_outs * all_mask_img1
+    x2_outs_inv = x2_outs_inv * all_mask_img1
+
+    x1_outs = x1_outs.permute(1, 0, 2, 3).contiguous()
+    x2_outs_inv = x2_outs_inv.permute(1, 0, 2, 3).contiguous()
+
+    p_i_j = torch.nn.functional.conv2d(x1_outs, weight=x2_outs_inv,
+                                       padding=(half_T_side_dense, half_T_side_dense))
+    p_i_j = p_i_j.sum(dim=2, keepdim=False).sum(dim=2, keepdim=False)
+
+    current_norm = float(p_i_j.sum())
+    p_i_j = p_i_j / current_norm
+    p_i_j = (p_i_j + p_i_j.t()) / 2.
+
+    p_i_mat = p_i_j.sum(dim=1).unsqueeze(1)
+    p_j_mat = p_i_j.sum(dim=0).unsqueeze(0)
+
+    EPS = sys.float_info.epsilon
+
+    p_i_j[(p_i_j < EPS).data] = EPS
+    p_i_mat[(p_i_mat < EPS).data] = EPS
+    p_j_mat[(p_j_mat < EPS).data] = EPS
+
+    loss = (-p_i_j * (torch.log(p_i_j) - lamb * torch.log(p_i_mat) -
+                      lamb * torch.log(p_j_mat))).sum()
+
+    loss_no_lamb = (-p_i_j * (torch.log(p_i_j) - torch.log(p_i_mat) -
+                      torch.log(p_j_mat))).sum()
+
 
     return loss, loss_no_lamb
 
