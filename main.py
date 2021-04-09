@@ -13,6 +13,9 @@ import torch.optim
 import os.path
 import time
 import PIL.Image
+from model import *
+from configuration import *
+from dataset import *
 
 
 def transform_single_image(img_path):
@@ -27,16 +30,7 @@ def transform_single_image(img_path):
 
 def create_model(model_name):
     # Set parameters
-    config = type('config', (object,), {})()
-    # TODO: maybe precroppings allows for larger batch sizes?
-    config.dataloader_batch_sz = 32
-    config.shuffle = True
-    config.filenames = "../datasets/filenamescoco.json"
-    config.jitter_brightness = 0.4
-    config.jitter_contrast = 0.4
-    config.jitter_saturation = 0.4
-    config.jitter_hue = 0.125
-    config.flip_p = 0.5
+    config = create_config()
 
     # Create train_imgs
     # Create dataset
@@ -49,7 +43,7 @@ def create_model(model_name):
                                                    num_workers=4,
                                                    drop_last=False)
 
-    net = IICNet()
+    net = IICNet(config)
     net.cuda()
     net = torch.nn.DataParallel(net)
     net.train()
@@ -57,7 +51,6 @@ def create_model(model_name):
     optimizer = torch.optim.Adam(net.module.parameters(), lr=0.1)
 
     epochs = 5
-
     all_losses = []
 
     # For every epoch
@@ -138,7 +131,7 @@ def create_model(model_name):
     # cv2.waitKey(0)
 
 def test():
-    net = IICNet()
+    net = IICNet(create_config())
     net.cuda()
     net = torch.nn.DataParallel(net)
     net.load_state_dict(torch.load("../models/model.pt"))
@@ -188,109 +181,6 @@ def test():
 def evaluate(model_name):
     print("evaluating")
 
-class CocoStuff3Dataset(torch.utils.data.Dataset):
-
-    def __init__(self, config):
-        # create cool dictionary
-        with open(config.filenames) as f:
-            self.data = json.load(f)
-        self.jitter_tf = torchvision.transforms.ColorJitter(brightness=config.jitter_brightness,
-                                                            contrast=config.jitter_contrast,
-                                                            saturation=config.jitter_saturation,
-                                                            hue=config.jitter_hue)
-        self.flip_p = config.flip_p
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, id):
-        start = time.time()
-        image_path = self.data[id]["file"]
-        img1 = cv2.imread(image_path, cv2.IMREAD_COLOR).astype(np.uint8)
-        cv2.resize(img1, dsize=None, fx=2/3, fy=2/3,
-                   interpolation=cv2.INTER_LINEAR)
-        x = np.random.randint(img1.shape[1] - 128)
-        y = np.random.randint(img1.shape[0] - 128)
-        # x = img1.shape[1] / 2 - 128 / 2
-        # y = img1.shape[0] / 2 - 128 / 2
-        img1 = img1[int(y):int(y + 128), int(x):int(x+128)]
-        # create image pair and transform
-        img1 = PIL.Image.fromarray(img1.astype(np.uint8))
-        img2 = self.jitter_tf(img1)
-        img1 = np.array(img1)
-        img2 = np.array(img2)
-        img1 = grey_image(img1)
-        img2 = grey_image(img2)
-        img1 = img1.astype(np.float32) / 255.
-        img2 = img2.astype(np.float32) / 255.
-        # image to gpu
-        img1 = torch.from_numpy(img1).permute(2, 0, 1).to(torch.float32)
-        img2 = torch.from_numpy(img2).permute(2, 0, 1).to(torch.float32)
-
-        # flip
-        flip = False
-        if np.random.rand() <= self.flip_p:
-            img2 = torch.flip(img2, dims=[2])
-            flip = True
-        # print(time.time() - start)
-        return img1, img2, flip
-
-
-class IICNet(torch.nn.Module):
-    def __init__(self):
-        super(IICNet, self).__init__()
-        self.in_channels = 5
-        self.pad = 1
-        self.conv_size = 3
-        self.out_channels = 3
-        self.features = self._make_layers()
-        self.track_running_stats = False
-
-    #TODO: batchnorm stuff
-    def _make_layers(self, batch_norm=True):
-        layers = []
-        layers.append(torch.nn.Conv2d(in_channels=self.in_channels, out_channels=64,
-                                      kernel_size=self.conv_size, stride=1,
-                                      padding=self.pad, dilation=1, bias=False))
-        layers.append(torch.nn.BatchNorm2d(64, track_running_stats=False))
-        layers.append(torch.nn.ReLU(inplace=True))
-
-        layers.append(torch.nn.Conv2d(in_channels=64, out_channels=128,
-                                      kernel_size=self.conv_size, stride=1,
-                                      padding=self.pad, dilation=1, bias=False))
-        layers.append(torch.nn.ReLU(inplace=True))
-
-        layers.append(torch.nn.MaxPool2d(kernel_size=2, stride=2))
-
-        layers.append(torch.nn.Conv2d(in_channels=128, out_channels=256,
-                                      kernel_size=self.conv_size, stride=1,
-                                      padding=self.pad, dilation=1, bias=False))
-        layers.append(torch.nn.ReLU(inplace=True))
-
-        layers.append(torch.nn.Conv2d(in_channels=256, out_channels=256,
-                                      kernel_size=self.conv_size, stride=1,
-                                      padding=self.pad, dilation=1, bias=False))
-        layers.append(torch.nn.ReLU(inplace=True))
-
-        layers.append(torch.nn.Conv2d(in_channels=256, out_channels=512,
-                                      kernel_size=self.conv_size, stride=1,
-                                      padding=self.pad, dilation=2, bias=False))
-        layers.append(torch.nn.ReLU(inplace=True))
-
-        layers.append(torch.nn.Conv2d(in_channels=512, out_channels=512,
-                                      kernel_size=self.conv_size, stride=1,
-                                      padding=self.pad, dilation=2, bias=False))
-        layers.append(torch.nn.ReLU(inplace=True))
-
-        layers.append(torch.nn.Sequential(torch.nn.Conv2d(in_channels=512, out_channels=self.out_channels, kernel_size=1,
-                                      stride=1, dilation=1, padding=1, bias=False),
-                      torch.nn.Softmax2d()))
-        return torch.nn.Sequential(*layers)
-
-    def forward(self, x):
-        x = self.features(x)
-        return torch.nn.functional.interpolate(x, size=128, mode="bilinear", align_corners=False)
-
 
 def loss_fn(x1_outs, x2_outs, all_affine2_to_1=None,
                           all_mask_img1=None, lamb=1.0,
@@ -328,26 +218,7 @@ def loss_fn(x1_outs, x2_outs, all_affine2_to_1=None,
 
     return loss, loss_no_lamb
 
-def grey_image(img):
-    return np.concatenate([img, cv2.cvtColor(img, cv2.COLOR_RGB2GRAY).reshape(img.shape[0], img.shape[1], 1)], axis=2)
 
-def sobel(imgs):
-    grey_imgs = imgs[:, 3, :, :].unsqueeze(1)
-    rgb_imgs = imgs[:, :3, :, :]
-
-    sobelxweights = np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]])
-    convx = torch.nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=1, bias=False)
-    convx.weight = torch.nn.Parameter(
-    torch.Tensor(sobelxweights).cuda().float().unsqueeze(0).unsqueeze(0))
-    dx = convx(torch.autograd.Variable(grey_imgs)).data
-
-    sobelyweights = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
-    convy = torch.nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=1, bias=False)
-    convy.weight = torch.nn.Parameter(
-        torch.from_numpy(sobelyweights).cuda().float().unsqueeze(0).unsqueeze(0))
-    dy = convy(torch.autograd.Variable(grey_imgs)).data
-
-    return torch.cat([rgb_imgs, dx, dy], dim=1)
 
 
 if __name__ == "__main__":
