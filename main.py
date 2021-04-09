@@ -35,7 +35,7 @@ def create_model(model_name):
 
     # Create train_imgs
     # Create dataset
-    dataset = CocoStuff3Dataset(config)
+    dataset = CocoStuff3Dataset(config, "train")
 
     # Create data loader
     train_dataloader = torch.utils.data.DataLoader(dataset,
@@ -63,7 +63,7 @@ def create_model(model_name):
             net.load_state_dict(torch.load(epoch_model_path))
             continue
         # For every batch
-        for step, (img1, img2, flip) in enumerate(train_dataloader):
+        for step, (img1, img2, flip, mask) in enumerate(train_dataloader):
             if step == 10:
                 break
             print(step)
@@ -143,9 +143,9 @@ def loss_fn(x1_outs, x2_outs, all_affine2_to_1=None,
 
 def display_image():
     config = create_config()
-    dataset = CocoStuff3Dataset(config)
+    dataset = CocoStuff3Dataset(config, "train")
     for i in range(5):
-        img1, img2, flip = dataset.__getitem__(i)
+        img1, img2, flip, mask = dataset.__getitem__(i)
         display_output_image_and_output(img1)
 
 

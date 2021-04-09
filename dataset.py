@@ -6,9 +6,10 @@ import cv2
 import PIL
 import time
 
+
 class CocoStuff3Dataset(torch.utils.data.Dataset):
 
-    def __init__(self, config):
+    def __init__(self, config, purpose):
         # create cool dictionary
         with open(config.filenames) as f:
             self.data = json.load(f)
@@ -17,42 +18,97 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
                                                             saturation=config.jitter_saturation,
                                                             hue=config.jitter_hue)
         self.flip_p = config.flip_p
+        self.purpose = purpose
 
     def __len__(self):
         return len(self.data)
 
-    def __getitem__(self, id):
+    def _prepare_train(self, img, label):
         start = time.time()
-        image_path = self.data[id]["file"]
-        img1 = cv2.imread(image_path, cv2.IMREAD_COLOR).astype(np.uint8)
-        cv2.resize(img1, dsize=None, fx=2/3, fy=2/3,
-                   interpolation=cv2.INTER_LINEAR)
-        x = np.random.randint(img1.shape[1] - 128)
-        y = np.random.randint(img1.shape[0] - 128)
-        img1 = img1[int(y):int(y + 128), int(x):int(x+128)]
+
+        x = np.random.randint(img.shape[1] - 128)
+        y = np.random.randint(img.shape[0] - 128)
+        img = img[int(y):int(y + 128), int(x):int(x + 128)]
+        label = label[int(y):int(y + 128), int(x):int(x + 128)]
+
+        _, mask_img1 = _filter_label(label)
+
+        mask_img1 = torch.from_numpy(mask_img1.astype(np.uint8)).cuda()
+
         # create image pair and transform
-        img1 = PIL.Image.fromarray(img1.astype(np.uint8))
-        img2 = self.jitter_tf(img1)
-        img1 = np.array(img1)
-        img2 = np.array(img2)
-        img1 = grey_image(img1)
-        img2 = grey_image(img2)
-        img1 = img1.astype(np.float32) / 255.
-        img2 = img2.astype(np.float32) / 255.
+        img = PIL.Image.fromarray(img.astype(np.uint8))
+        img_pair = self.jitter_tf(img)
+        img = np.array(img)
+        img_pair = np.array(img_pair)
+        img = grey_image(img)
+        img_pair = grey_image(img_pair)
+        img = img.astype(np.float32) / 255.
+        img_pair = img_pair.astype(np.float32) / 255.
         # image to gpu
-        img1 = torch.from_numpy(img1).permute(2, 0, 1).to(torch.float32)
-        img2 = torch.from_numpy(img2).permute(2, 0, 1).to(torch.float32)
+        img = torch.from_numpy(img).permute(2, 0, 1).to(torch.float32)
+        img_pair = torch.from_numpy(img_pair).permute(2, 0, 1).to(torch.float32)
 
         # flip
         flip = False
         if np.random.rand() <= self.flip_p:
-            img2 = torch.flip(img2, dims=[2])
+            img_pair = torch.flip(img_pair, dims=[2])
             flip = True
         # print(time.time() - start)
-        return img1, img2, flip
+        return img, img_pair, flip, mask_img1
+
+    def _prepare_test(self, img, label):
+        ccrop = torchvision.transforms.CenterCrop(128)
+        img = ccrop(img)
+        label = ccrop(label)
+
+        img = grey_image(img)
+        img = img.astype(np.float32) / 255.
+        # image to gpu
+        img = torch.from_numpy(img).permute(2, 0, 1)
+
+        label, mask = self._filter_label(label)
+
+        return img, torch.from_numpy(label), torch.from_numpy(mask.astype(np.uint8))
+
+    def __getitem__(self, id):
+        image_path = self.data[id]["file"]
+        label_path = image_path.replace("train2017", "traingt2017").replace("val2017", "valgt2017")
+        img = cv2.imread(image_path, cv2.IMREAD_COLOR).astype(np.uint8)
+        label = cv2.imread(label_path, cv2.IMREAD_GRAYSCALE).astype(np.uint32)
+        img = img.astype(np.float32)
+        label = label.astype(np.int32)
+
+        img = cv2.resize(img, dsize=None, fx=2 / 3, fy=2 / 3,
+                         interpolation=cv2.INTER_LINEAR)
+        label = cv2.resize(label, dsize=None, fx=2 / 3,
+                           fy=2 / 3,
+                           interpolation=cv2.INTER_NEAREST)
+
+        if self.purpose == "train":
+            return self._prepare_train(img, label)
+        elif self.purpose == "test":
+            return self._prepare_test(img, label)
+        else:
+            raise NotImplementedError("Type is not train or test.")
+
+
+def _filter_label(label):
+    new_label_map = -1 * np.ones(label.shape, dtype=label.dtype)
+    sky_labels = [106, 157]
+    ground_labels = [111, 125, 126, 136, 140, 144, 145, 147, 149, 154, 159]
+    plant_labels = [94, 97, 119, 124, 129, 134, 142, 163, 169]
+    new_label_map[label in sky_labels] = 0
+    new_label_map[label == ground_labels] = 1
+    new_label_map[label == plant_labels] = 2
+
+    mask = (new_label_map >= 0)
+
+    return new_label_map, mask
+
 
 def grey_image(img):
     return np.concatenate([img, cv2.cvtColor(img, cv2.COLOR_RGB2GRAY).reshape(img.shape[0], img.shape[1], 1)], axis=2)
+
 
 def sobel(imgs):
     grey_imgs = imgs[:, 3, :, :].unsqueeze(1)
@@ -61,7 +117,7 @@ def sobel(imgs):
     sobelxweights = np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]])
     convx = torch.nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=1, bias=False)
     convx.weight = torch.nn.Parameter(
-    torch.Tensor(sobelxweights).cuda().float().unsqueeze(0).unsqueeze(0))
+        torch.Tensor(sobelxweights).cuda().float().unsqueeze(0).unsqueeze(0))
     dx = convx(torch.autograd.Variable(grey_imgs)).data
 
     sobelyweights = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
