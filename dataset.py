@@ -77,6 +77,7 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
         return img, torch.from_numpy(label), torch.from_numpy(mask.astype(np.uint8))
 
     def __getitem__(self, id):
+        print("image loading")
         image_path = self.data[id]["file"]
         if not os.path.exists(image_path):
             print(image_path)

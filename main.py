@@ -67,9 +67,9 @@ def create_model(model_name):
         total_loss_no_lamb = 0
         start_time = time.time()
         epoch_model_path = "../datasets/models/" + model_name + "_epoch_" + str(epoch) + ".pth"
-        if os.path.exists(epoch_model_path) and config.existing_model:
-            net.load_state_dict(torch.load(epoch_model_path))
-            continue
+        # if os.path.exists(epoch_model_path) and config.existing_model:
+        #     net.load_state_dict(torch.load(epoch_model_path))
+        #     continue
         # For every batch
         for step, (img1, img2, flip, mask) in enumerate(train_dataloader):
             print("batch", step)
