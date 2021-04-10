@@ -57,7 +57,7 @@ def create_model(model_name):
     log_file = time.strftime("../datasets/logs/%Y_%m_%d-%H_%M_%S_log.json")
 
     log = []
-    with open(log_file,"w") as w:
+    with open(log_file, "w") as w:
         json.dump(log, w)
 
     # For every epoch
@@ -123,103 +123,86 @@ def evaluate(model_name):
     net = torch.nn.DataParallel(net)
 
     mapping_assignment_dataloader = CocoStuff3Dataset(config, "test")
-    mapping_test_dataloader = CocoStuff3Dataset(config, "test")
 
     match, test_acc = eval(config,
                            net,
-                           mapping_assignment_dataloader,
-                           mapping_test_dataloader)
+                           mapping_assignment_dataloader)
 
     print(test_acc)
 
 
-
-
-def eval(config, net, mapping_assignment_dataloader, mapping_test_dataloader):
+def eval(config, net, mapping_assignment_dataloader):
     torch.cuda.empty_cache()
     net.eval()
-    match, test_acc = subhead_eval(config, net,
-                              mapping_assignment_dataloader,
-                              mapping_test_dataloader,
-                              segmentation_data_method)
+    test_accs = []
+    matches = []
+
+    for bnumber, curr_batch in enumerate(mapping_assignment_dataloader):
+        match, test_acc = subhead_eval(config, net,
+                                       (curr_batch, bnumber),
+                                       segmentation_data_method)
+        matches.append(match), test_accs.append(test_acc)
+
     net.train()
     torch.cuda.empty_cache()
-    return match, test_acc
+    return matches, test_accs
 
 
-def subhead_eval(config, net, mapping_assignment_dataloader, mapping_test_dataloader, segmentation_data_method):
+def subhead_eval(config, net, curr_batch, segmentation_data_method):
 
     match, test_acc = _get_assignment_data_matches(net,
-                                                   mapping_assignment_dataloader,
+                                                   curr_batch,
                                                    config,
                                                    segmentation_data_method)
 
     return match, test_acc
 
 
-def _get_assignment_data_matches(net, mapping_assignment_dataloader, config, segmentation_data_method):
+def _get_assignment_data_matches(net, curr_batch, config, segmentation_data_method):
+    predictions_batch, labels_batch = segmentation_data_method(config, net, curr_batch)
 
-    predictions_all, labels_all = segmentation_data_method(config, net, mapping_assignment_dataloader)
-
-    num_test = labels_all.shape[0]
+    num_test = labels_batch.shape[0]
     num_samples = num_test
 
-    match = _original_match(predictions_all, labels_all, config.output_k, config.gt_k)
+    match = _original_match(predictions_batch, labels_batch, config.output_k, config.gt_k)
 
     found = torch.zeros(config.output_k)
     reordered_preds = torch.zeros(num_samples,
-                                  dtype=predictions_all.dtype).cuda()
+                                  dtype=predictions_batch.dtype).cuda()
 
     for pred_i, target_i in match:
-        reordered_preds[predictions_all == pred_i] = target_i
+        reordered_preds[predictions_batch == pred_i] = target_i
         found[pred_i] = 1
 
-    acc = int((reordered_preds == labels_all).sum()) / float(reordered_preds.shape[0])
+    acc = int((reordered_preds == labels_batch).sum()) / float(reordered_preds.shape[0])
 
     return match, acc
 
 
-def segmentation_data_method(config, net, dataloader):
-    num_batches = len(dataloader)
-    num_samples = 0
+def segmentation_data_method(config, net, curr_batch):
+    batch_number, batch = curr_batch
+    imgs, labels, mask = batch
 
-    samples_per_batch = config.dataloader_batch_sz * config.input_sz * config.input_sz
-    predictions_all = torch.zeros((num_batches * samples_per_batch),
-                                  dtype=torch.uint8).cuda()
-    labels_all = torch.zeros((num_batches * samples_per_batch),
-                             dtype=torch.uint8).cuda()
-    mask_all = torch.zeros((num_batches * samples_per_batch),
-                           dtype=torch.uint8).cuda()
+    imgs = imgs.cuda()
+    imgs = sobel(imgs)
 
-    for bnumber, batch in enumerate(dataloader):
-        imgs, labels, mask = batch
-        imgs = imgs.cuda()
-        imgs = sobel(imgs)
+    with torch.no_grad():
+        x_outs = net(imgs)
 
-        with torch.no_grad():
-            x_outs = net(imgs)
+    batch_pred = torch.argmax(x_outs, dim=1)
 
-        actual_samples = labels.shape[0] * config.input_sz * config.input_sz
-        num_samples += actual_samples
-        start_i = bnumber * samples_per_batch
-        batch_pred = torch.argmax(x_outs, dim=1)
+    # vectorise stuff view(-1)
+    predictions_batch = batch_pred.view(-1).cuda()
+    labels_batch = labels.view(-1).cuda()
+    mask_batch = mask.view(-1).cuda()
 
-        # vectorise stuff view(-1)
-        predictions_all[start_i:(start_i + actual_samples)] = batch_pred.view(-1)
-        labels_all[start_i:(start_i + actual_samples)] = labels.view(-1)
-        mask_all[start_i:(start_i + actual_samples)] = mask.view(-1)
+    predictions_batch = predictions_batch.masked_select(mask=mask_batch)
+    labels_batch = labels_batch.masked_select(mask=mask_batch)
 
-    predictions_all = predictions_all[:num_samples]
-    labels_all = labels_all[:num_samples]
-    mask_all = mask_all[:num_samples]
-
-    predictions_all = predictions_all.masked_select(mask=mask_all)
-    labels_all = labels_all.masked_select(mask=mask_all)
-
-    return predictions_all, labels_all
+    return predictions_batch, labels_batch
 
 
-def _original_match(predictions_all, labels_all, preds_k, labels_k):
+def _original_match(predictions_batch, labels_batch, preds_k, labels_k):
     # map each output channel to the best matching ground truth (many to one)
 
     out_to_gts = {}
@@ -227,7 +210,7 @@ def _original_match(predictions_all, labels_all, preds_k, labels_k):
     for out_c in range(preds_k):
         for gt_c in range(labels_k):
             # the amount of out_c at all the gt_c samples
-            tp_score = int(((predictions_all == out_c) * (labels_all == gt_c)).sum())
+            tp_score = int(((predictions_batch == out_c) * (labels_batch == gt_c)).sum())
             if (out_c not in out_to_gts) or (tp_score > out_to_gts_scores[out_c]):
                 out_to_gts[out_c] = gt_c
                 out_to_gts_scores[out_c] = tp_score
