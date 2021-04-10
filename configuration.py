@@ -7,7 +7,7 @@ def create_config():
     config.shuffle = True
     config.filenames = "../datasets/filenamescoco.json"
     config.existing_model = True
-    config.num_workers = 4
+    config.num_workers = 2
 
     config.jitter_brightness = 0.4
     config.jitter_contrast = 0.4
