@@ -39,7 +39,7 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
         img = img[int(y):int(y + 128), int(x):int(x + 128)]
         label = label[int(y):int(y + 128), int(x):int(x + 128)]
 
-        _, mask_img1 = _filter_label(label)
+        _, mask_img1 = filter_label(label)
 
         mask_img1 = torch.from_numpy(mask_img1.astype(np.uint8))
 
@@ -65,16 +65,18 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
         return img, img_pair, flip, mask_img1
 
     def _prepare_test(self, img, label):
-        ccrop = torchvision.transforms.CenterCrop(128)
-        img = ccrop(img)
-        label = ccrop(label)
+        x = img.shape[1] / 2 - 64
+        y = img.shape[0] / 2 - 64
+
+        img = img[int(y):int(y + 128), int(x):int(x + 128)]
+        label = label[int(y):int(y + 128), int(x):int(x + 128)]
 
         img = grey_image(img)
         img = img.astype(np.float32) / 255.
         # image to gpu
         img = torch.from_numpy(img).permute(2, 0, 1)
 
-        label, mask = self._filter_label(label)
+        label, mask = filter_label(label)
 
         return img, torch.from_numpy(label), torch.from_numpy(mask.astype(np.uint8))
 
@@ -107,7 +109,7 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
         return output
 
 
-def _filter_label(label):
+def filter_label(label):
     # print(label)
     new_label_map = -1 * np.ones(label.shape, dtype=label.dtype)
     sky_labels = [105, 156]

@@ -4,10 +4,15 @@ def create_config():
 
     config = type('config', (object,), {})()
     config.dataloader_batch_sz = 32
+    config.input_sz = 128
+    config.output_k = 3
+    config.gt_k = 3
     config.shuffle = True
     config.filenames = "../datasets/filenamescoco.json"
+
     config.existing_model = True
     config.num_workers = 2
+    config.model_name = "coco3_ploss"
 
     config.jitter_brightness = 0.4
     config.jitter_contrast = 0.4
