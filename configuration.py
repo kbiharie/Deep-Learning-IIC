@@ -4,6 +4,9 @@ def create_config():
 
     config = type('config', (object,), {})()
     config.dataloader_batch_sz = 32
+    config.input_sz = 128
+    config.output_k = 3
+    config.gt_k = 3
     config.shuffle = True
     config.filenames = "../datasets/filenamescoco.json"
     config.existing_model = False

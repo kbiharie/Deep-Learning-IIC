@@ -117,13 +117,128 @@ def create_model(model_name):
 def evaluate(model_name):
     print("evaluating")
 
+    config = create_config()
+
+    net = IICNet(config)
+    net = torch.nn.DataParallel(net)
+
+    mapping_assignment_dataloader = CocoStuff3Dataset(config, "test")
+    mapping_test_dataloader = CocoStuff3Dataset(config, "test")
+
+    match, test_acc = eval(config,
+                           net,
+                           mapping_assignment_dataloader,
+                           mapping_test_dataloader)
+
+    print(test_acc)
+
+
+
+
+def eval(config, net, mapping_assignment_dataloader, mapping_test_dataloader):
+    torch.cuda.empty_cache()
+    net.eval()
+    match, test_acc = subhead_eval(config, net,
+                              mapping_assignment_dataloader,
+                              mapping_test_dataloader,
+                              segmentation_data_method)
+    net.train()
+    torch.cuda.empty_cache()
+    return match, test_acc
+
+
+def subhead_eval(config, net, mapping_assignment_dataloader, mapping_test_dataloader, segmentation_data_method):
+
+    match, test_acc = _get_assignment_data_matches(net,
+                                                   mapping_assignment_dataloader,
+                                                   config,
+                                                   segmentation_data_method)
+
+    return match, test_acc
+
+
+def _get_assignment_data_matches(net, mapping_assignment_dataloader, config, segmentation_data_method):
+    predictions_all, labels_all = segmentation_data_method(config, net, mapping_assignment_dataloader)
+
+    num_test = labels_all.shape[0]
+    num_samples = num_test
+
+    match = _original_match(predictions_all, labels_all, config.output_k, config.gt_k)
+
+    found = torch.zeros(config.output_k)
+    reordered_preds = torch.zeros(num_samples,
+                                  dtype=predictions_all.dtype).cuda()
+
+    for pred_i, target_i in match:
+        reordered_preds[predictions_all == pred_i] = target_i
+        found[pred_i] = 1
+
+    acc = int((reordered_preds == labels_all).sum()) / float(reordered_preds.shape[0])
+
+    return match, acc
+
+
+def segmentation_data_method(config, net, dataloader):
+    num_batches = len(dataloader)
+    num_samples = 0
+
+    samples_per_batch = config.dataloader_batch_sz * config.input_sz * config.input_sz
+    predictions_all = torch.zeros((num_batches * samples_per_batch),
+                                  dtype=torch.uint8).cuda()
+    labels_all = torch.zeros((num_batches * samples_per_batch),
+                             dtype=torch.uint8).cuda()
+    mask_all = torch.zeros((num_batches * samples_per_batch),
+                           dtype=torch.uint8).cuda()
+
+    for bnumber, batch in enumerate(dataloader):
+        imgs, labels, mask = batch
+        imgs = imgs.cuda()
+        imgs = sobel(imgs)
+
+        with torch.no_grad():
+            x_outs = net(imgs)
+        actual_samples = labels.shape[0] * config.input_sz * config.input_sz
+        num_samples += actual_samples
+        start_i = bnumber * samples_per_batch
+        batch_pred = torch.argmax(x_outs, dim=1)
+
+        # vectorise stuff view(-1)
+        predictions_all[start_i:(start_i + actual_samples)] = batch_pred.view(-1)
+        labels_all[start_i:(start_i + actual_samples)] = labels.view(-1)
+        mask_all[start_i:(start_i + actual_samples)] = mask.view(-1)
+
+        predictions_all = predictions_all[:num_samples]
+        labels_all = labels_all[:num_samples]
+        mask_all = mask_all[:num_samples]
+
+        predictions_all = predictions_all.masked_select(mask=mask_all)
+        labels_all = labels_all.masked_select(mask=mask_all)
+
+    return predictions_all, labels_all
+
+
+def _original_match(predictions_all, labels_all, preds_k, labels_k):
+    # map each output channel to the best matching ground truth (many to one)
+
+    out_to_gts = {}
+    out_to_gts_scores = {}
+    for out_c in range(preds_k):
+        for gt_c in range(labels_k):
+            # the amount of out_c at all the gt_c samples
+            tp_score = int(((predictions_all == out_c) * (labels_all == gt_c)).sum())
+            if (out_c not in out_to_gts) or (tp_score > out_to_gts_scores[out_c]):
+                out_to_gts[out_c] = gt_c
+                out_to_gts_scores[out_c] = tp_score
+
+    return list(out_to_gts.iteritems())
+
 
 def loss_fn(x1_outs, x2_outs, all_affine2_to_1=None,
-                          all_mask_img1=None, lamb=1.0,
-                          half_T_side_dense=0,
-                          half_T_side_sparse_min=0,
-                          half_T_side_sparse_max=0):
-    #TODO: perform inverse affine transformation
+            all_mask_img1=None, lamb=1.0,
+            half_T_side_dense=0,
+            half_T_side_sparse_min=0,
+            half_T_side_sparse_max=0):
+    # TODO: perform inverse affine transformation
     x2_outs_inv = x2_outs
 
     all_mask_img1 = all_mask_img1.view(x1_outs.shape[0], 1, x1_outs.shape[2], x1_outs.shape[3])
@@ -154,9 +269,10 @@ def loss_fn(x1_outs, x2_outs, all_affine2_to_1=None,
                       lamb * torch.log(p_j_mat))).sum()
 
     loss_no_lamb = (-p_i_j * (torch.log(p_i_j) - torch.log(p_i_mat) -
-                      torch.log(p_j_mat))).sum()
+                              torch.log(p_j_mat))).sum()
 
     return loss, loss_no_lamb
+
 
 def display_image():
     config = create_config()
