@@ -29,8 +29,10 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
         start = time.time()
 
         if self.random_crop:
-            x = np.random.randint(img.shape[1] - 128)
-            y = np.random.randint(img.shape[0] - 128)
+
+            x = np.random.randint(img.shape[1] - 128) if img.shape[1] > 128 else 0
+            y = np.random.randint(img.shape[0] - 128) if img.shape[0] > 128 else 0
+
         else:
             x = img.shape[1] / 2 - 64
             y = img.shape[0] / 2 - 64
@@ -83,6 +85,7 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
         if not os.path.exists(image_path):
             print(image_path)
         label_path = get_label_path(image_path)
+        # print(image_path, label_path)
         img = cv2.imread(image_path, cv2.IMREAD_COLOR).astype(np.uint8)
         label = cv2.imread(label_path, cv2.IMREAD_GRAYSCALE).astype(np.uint32)
         img = img.astype(np.float32)
@@ -94,12 +97,16 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
                            fy=2 / 3,
                            interpolation=cv2.INTER_NEAREST)
 
+        if img.shape[1] < 128 or img.shape[0] < 128:
+            print(image_path)
+
         if self.purpose == "train":
-            return self._prepare_train(img, label)
+            output = self._prepare_train(img, label)
         elif self.purpose == "test":
-            return self._prepare_test(img, label)
+            output = self._prepare_test(img, label)
         else:
             raise NotImplementedError("Type is not train or test.")
+        return output
 
 
 def filter_label(label):

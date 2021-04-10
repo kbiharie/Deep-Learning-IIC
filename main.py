@@ -41,7 +41,7 @@ def create_model(model_name):
     train_dataloader = torch.utils.data.DataLoader(dataset,
                                                    batch_size=config.dataloader_batch_sz,
                                                    shuffle=config.shuffle,
-                                                   num_workers=4,
+                                                   num_workers=config.num_workers,
                                                    drop_last=False)
 
     net = IICNet(config)
@@ -72,8 +72,10 @@ def create_model(model_name):
             optimizer = torch.optim.Adam(net.module.parameters(), lr=0.1)
             continue
         # For every batch
+        batch_time = time.time()
         for step, (img1, img2, flip, mask) in enumerate(train_dataloader):
-            print("batch", step)
+            print("batch", step - 1, "took", time.time() - batch_time)
+            batch_time = time.time()
             img1 = img1.cuda()
             img2 = img2.cuda()
             mask = mask.cuda()
@@ -86,6 +88,10 @@ def create_model(model_name):
             x1_outs = net(img1)
             x2_outs = net(img2)
 
+            del img1
+            del img2
+
+
             # TODO: is this the same dimension?
             for i in range(x2_outs.shape[0]):
                 if flip[i]:
@@ -95,9 +101,18 @@ def create_model(model_name):
             avg_loss_no_lamb_batch = None
 
             loss, loss_no_lamb = loss_fn(x1_outs, x2_outs, all_mask_img1=mask)
+
+            del x1_outs
+            del x2_outs
+
+            # print(time.time() - batch_time)
+            # batch_time = time.time()
+            #
             loss.backward()
             optimizer.step()
-
+            #
+            # print(time.time() - batch_time)
+            #
             total_loss += loss
             total_loss_no_lamb += loss_no_lamb
         to_log = {"type": "epoch", "loss": total_loss.item(), "epoch": epoch, "duration": time.time() - start_time}
@@ -263,6 +278,7 @@ def loss_fn(x1_outs, x2_outs, all_affine2_to_1=None,
 
     loss_no_lamb = (p_i_j * (torch.log(p_i_j) - torch.log(p_i_mat) -
                               torch.log(p_j_mat))).sum()
+
 
     return loss, loss_no_lamb
 
