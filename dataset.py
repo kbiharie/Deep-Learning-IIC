@@ -29,14 +29,10 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
         start = time.time()
 
         if self.random_crop:
-            if img.shape[1] == 128:
-                x = 0
-            else:
-                x = np.random.randint(img.shape[1] - 128)
-            if img.shape[0] == 128:
-                y = 0
-            else:
-                y = np.random.randint(img.shape[0] - 128)
+
+            x = np.random.randint(img.shape[1] - 128) if img.shape[1] > 128 else 0
+            y = np.random.randint(img.shape[0] - 128) if img.shape[0] > 128 else 0
+
         else:
             x = img.shape[1] / 2 - 64
             y = img.shape[0] / 2 - 64

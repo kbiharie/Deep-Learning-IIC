@@ -16,7 +16,7 @@ def display_output_image_and_output(image, mask):
     in_display, masked_display = display_dataset_image(image, mask)
 
     config = create_config()
-    model_path = "../datasets/models/coco3.pth"
+    model_path = "../datasets/models/models_coco3.pth"
 
     net = IICNet(config)
     net.cuda()
@@ -33,8 +33,10 @@ def display_output_image_and_output(image, mask):
 
     out_display = net(imgs)
     out_display = out_display[0]
+    print(out_display.shape)
     out_display = out_display * mask
     out_display = out_display.permute(1, 2, 0)
+    print(out_display[0:20, 0:20, :])
     out_display = out_display.cpu().detach().numpy()
 
     # TODO: take arg max of out_display
