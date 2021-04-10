@@ -29,7 +29,7 @@ def transform_single_image(img_path):
     cv2.waitKey(0)
 
 
-def create_model(model_name):
+def create_model():
     # Set parameters
     config = create_config()
 
@@ -51,7 +51,7 @@ def create_model(model_name):
 
     optimizer = torch.optim.Adam(net.module.parameters(), lr=0.1)
 
-    epochs = 5
+    epochs = 10
     all_losses = []
 
     log_file = time.strftime("../datasets/logs/%Y_%m_%d-%H_%M_%S_log.json")
@@ -66,7 +66,7 @@ def create_model(model_name):
         total_loss = 0
         total_loss_no_lamb = 0
         start_time = time.time()
-        epoch_model_path = "../datasets/models/" + model_name + "_epoch_" + str(epoch) + ".pth"
+        epoch_model_path = "../datasets/models/" + config.model_name + "_epoch_" + str(epoch) + ".pth"
         if os.path.exists(epoch_model_path) and config.existing_model:
             net.load_state_dict(torch.load(epoch_model_path))
             optimizer = torch.optim.Adam(net.module.parameters(), lr=0.1)
@@ -105,14 +105,8 @@ def create_model(model_name):
             del x1_outs
             del x2_outs
 
-            # print(time.time() - batch_time)
-            # batch_time = time.time()
-            #
             loss.backward()
             optimizer.step()
-            #
-            # print(time.time() - batch_time)
-            #
             total_loss += loss
             total_loss_no_lamb += loss_no_lamb
         to_log = {"type": "epoch", "loss": total_loss.item(), "epoch": epoch, "duration": time.time() - start_time}
@@ -127,7 +121,7 @@ def create_model(model_name):
 
         print(total_loss.item())
 
-    torch.save(net.state_dict(), "../datasets/models/" + model_name + ".pth")
+    torch.save(net.state_dict(), "../datasets/models/" + config.model_name + ".pth")
 
 
 def evaluate():
