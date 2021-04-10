@@ -69,6 +69,7 @@ def create_model(model_name):
         epoch_model_path = "../datasets/models/" + model_name + "_epoch_" + str(epoch) + ".pth"
         if os.path.exists(epoch_model_path) and config.existing_model:
             net.load_state_dict(torch.load(epoch_model_path))
+            optimizer = torch.optim.Adam(net.module.parameters(), lr=0.1)
             continue
         # For every batch
         for step, (img1, img2, flip, mask) in enumerate(train_dataloader):
@@ -114,15 +115,21 @@ def create_model(model_name):
     torch.save(net.state_dict(), "../datasets/models/" + model_name + ".pth")
 
 
-def evaluate(model_name):
+def evaluate():
     print("evaluating")
 
     config = create_config()
 
     net = IICNet(config)
+    # net.cuda()
     net = torch.nn.DataParallel(net)
+    net.load_state_dict(torch.load("../datasets/models/" + config.model_name + ".pth"))
 
-    mapping_assignment_dataloader = CocoStuff3Dataset(config, "test")
+    mapping_assignment_dataloader = torch.utils.data.DataLoader(CocoStuff3Dataset(config, "test"),
+                                                   batch_size=config.dataloader_batch_sz,
+                                                   shuffle=config.shuffle,
+                                                   num_workers=4,
+                                                   drop_last=False)
 
     match, test_acc = eval(config,
                            net,
@@ -134,20 +141,28 @@ def evaluate(model_name):
 def eval(config, net, mapping_assignment_dataloader):
     torch.cuda.empty_cache()
     net.eval()
-    test_accs = []
-    samples_per_batch = []
+    test_accs = 0
+    samples = 0
     matches = []
 
+    start_time = time.time()
+
     for bnumber, curr_batch in enumerate(mapping_assignment_dataloader):
-        match, test_acc, total_samples = _get_assignment_data_matches(net,
-                                                                      curr_batch,
+        if bnumber % 10 == 0:
+            print(bnumber, time.time() - start_time)
+        match, test_acc, batch_samples = _get_assignment_data_matches(net,
+                                                                      (bnumber, curr_batch),
                                                                       config,
                                                                       segmentation_data_method)
-        test_accs.append(test_acc), samples_per_batch.append(total_samples), matches.append(match),
+        test_accs += test_acc * batch_samples
+        samples += batch_samples
+        matches.append(match)
+        if bnumber == 100:
+            break
 
     net.train()
     torch.cuda.empty_cache()
-    return matches, test_accs
+    return matches, test_accs / samples
 
 
 def _get_assignment_data_matches(net, curr_batch, config, segmentation_data_method):
@@ -162,7 +177,8 @@ def _get_assignment_data_matches(net, curr_batch, config, segmentation_data_meth
     reordered_preds = torch.zeros(num_samples,
                                   dtype=predictions_batch.dtype).cuda()
 
-    for pred_i, target_i in match:
+    for pred_i in match:
+        target_i = match[pred_i]
         reordered_preds[predictions_batch == pred_i] = target_i
         found[pred_i] = 1
 
@@ -206,8 +222,7 @@ def _original_match(predictions_batch, labels_batch, preds_k, labels_k):
             if (out_c not in out_to_gts) or (tp_score > out_to_gts_scores[out_c]):
                 out_to_gts[out_c] = gt_c
                 out_to_gts_scores[out_c] = tp_score
-
-    return list(out_to_gts.iteritems())
+    return out_to_gts
 
 
 def loss_fn(x1_outs, x2_outs, all_affine2_to_1=None,
@@ -270,7 +285,8 @@ if __name__ == "__main__":
     # transform_single_image("../datasets/val2017/000000001532.jpg")
     # create_model()
     # prep_data.cocostuff3_write_filenames()
-    create_model("coco3")
+    # create_model("coco3")
     # prep_data.cocostuff_crop()
     # prep_data.cocostuff_clean_with_json(True)
     # display_image()
+    evaluate()
