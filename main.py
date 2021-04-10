@@ -257,10 +257,11 @@ def loss_fn(x1_outs, x2_outs, all_affine2_to_1=None,
     p_i_mat[(p_i_mat < EPS).data] = EPS
     p_j_mat[(p_j_mat < EPS).data] = EPS
 
-    loss = (-p_i_j * (torch.log(p_i_j) - lamb * torch.log(p_i_mat) -
+    # Removed minus in front of p_i_j!!
+    loss = (p_i_j * (torch.log(p_i_j) - lamb * torch.log(p_i_mat) -
                       lamb * torch.log(p_j_mat))).sum()
 
-    loss_no_lamb = (-p_i_j * (torch.log(p_i_j) - torch.log(p_i_mat) -
+    loss_no_lamb = (p_i_j * (torch.log(p_i_j) - torch.log(p_i_mat) -
                               torch.log(p_j_mat))).sum()
 
     return loss, loss_no_lamb
@@ -272,6 +273,72 @@ def display_image():
     for i in range(10, len(dataset)):
         img1, img2, flip, mask = dataset.__getitem__(i)
         display_output_image_and_output(img1, mask)
+
+def test_loss():
+    test = "images/test2.jpg"
+    test_gt = "images/test2.png"
+
+    img = cv2.imread(test, cv2.IMREAD_COLOR).astype(np.uint8)
+    label = cv2.imread(test_gt, cv2.IMREAD_GRAYSCALE).astype(np.uint32)
+    img = img.astype(np.float32)
+    label = label.astype(np.int32)
+
+    img = cv2.resize(img, dsize=None, fx=2 / 3, fy=2 / 3,
+                     interpolation=cv2.INTER_LINEAR)
+    label = cv2.resize(label, dsize=None, fx=2 / 3,
+                       fy=2 / 3,
+                       interpolation=cv2.INTER_NEAREST)
+
+    x = img.shape[1] / 2 - 64
+    y = img.shape[0] / 2 - 64
+
+    img = img[int(y):int(y + 128), int(x):int(x + 128)]
+    label = label[int(y):int(y + 128), int(x):int(x + 128)]
+
+    img = img.astype(np.float32) / 255.
+    img = torch.from_numpy(img).permute(2, 0, 1)
+    print(label)
+    label, mask = filter_label(label)
+
+    label, mask = torch.from_numpy(label), torch.from_numpy(mask.astype(np.uint8))
+
+    out_display = torch.zeros([3, label.shape[0], label.shape[1]])
+
+    out_display[0, label == 0] = 1
+    out_display[1, label == 1] = 1
+    out_display[2, label == 2] = 1
+
+    imgs1 = torch.zeros([1, img.shape[0], img.shape[1], img.shape[2]])
+    imgs2 = torch.zeros([1, img.shape[0], img.shape[1], img.shape[2]])
+    masks = torch.zeros([1, mask.shape[0], mask.shape[1]])
+    imgs1[0] = img
+    imgs2[0] = out_display
+    masks[0] = mask
+
+    print(loss_fn(imgs1, imgs2, all_mask_img1=masks)[0])
+
+    out_display[0,:,:] = 1
+    out_display[1,:,:] = 0
+    out_display[2,:,:] = 0
+    imgs2[0] = out_display
+    print(loss_fn(imgs1, imgs2, all_mask_img1=masks)[0])
+
+    out_display = out_display * mask
+    out_display = out_display.permute(1, 2, 0)
+    out_display = out_display.numpy()
+
+    in_display = img.permute(1,2,0)
+
+    masked_display = img * mask
+    masked_display = masked_display.permute(1, 2, 0)
+    masked_display = masked_display.numpy()
+
+    print(in_display.shape, masked_display.shape, out_display.shape)
+
+    display = np.concatenate((in_display, masked_display, out_display), axis=1)
+
+    cv2.imshow("window", display)
+    cv2.waitKey(0)
 
 
 if __name__ == "__main__":

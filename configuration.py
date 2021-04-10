@@ -10,7 +10,7 @@ def create_config():
     config.shuffle = True
     config.filenames = "../datasets/filenamescoco.json"
     config.existing_model = False
-    config.model_name = "coco3"
+    config.model_name = "coco3_ploss"
 
     config.jitter_brightness = 0.4
     config.jitter_contrast = 0.4
