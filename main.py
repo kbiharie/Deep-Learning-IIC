@@ -158,6 +158,7 @@ def subhead_eval(config, net, mapping_assignment_dataloader, mapping_test_datalo
 
 
 def _get_assignment_data_matches(net, mapping_assignment_dataloader, config, segmentation_data_method):
+
     predictions_all, labels_all = segmentation_data_method(config, net, mapping_assignment_dataloader)
 
     num_test = labels_all.shape[0]
@@ -197,6 +198,7 @@ def segmentation_data_method(config, net, dataloader):
 
         with torch.no_grad():
             x_outs = net(imgs)
+
         actual_samples = labels.shape[0] * config.input_sz * config.input_sz
         num_samples += actual_samples
         start_i = bnumber * samples_per_batch
@@ -207,12 +209,12 @@ def segmentation_data_method(config, net, dataloader):
         labels_all[start_i:(start_i + actual_samples)] = labels.view(-1)
         mask_all[start_i:(start_i + actual_samples)] = mask.view(-1)
 
-        predictions_all = predictions_all[:num_samples]
-        labels_all = labels_all[:num_samples]
-        mask_all = mask_all[:num_samples]
+    predictions_all = predictions_all[:num_samples]
+    labels_all = labels_all[:num_samples]
+    mask_all = mask_all[:num_samples]
 
-        predictions_all = predictions_all.masked_select(mask=mask_all)
-        labels_all = labels_all.masked_select(mask=mask_all)
+    predictions_all = predictions_all.masked_select(mask=mask_all)
+    labels_all = labels_all.masked_select(mask=mask_all)
 
     return predictions_all, labels_all
 
