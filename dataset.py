@@ -29,8 +29,14 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
         start = time.time()
 
         if self.random_crop:
-            x = np.random.randint(img.shape[1] - 128)
-            y = np.random.randint(img.shape[0] - 128)
+            if img.shape[1] == 128:
+                x = 0
+            else:
+                x = np.random.randint(img.shape[1] - 128)
+            if img.shape[0] == 128:
+                y = 0
+            else:
+                y = np.random.randint(img.shape[0] - 128)
         else:
             x = img.shape[1] / 2 - 64
             y = img.shape[0] / 2 - 64
@@ -102,7 +108,6 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
             output = self._prepare_test(img, label)
         else:
             raise NotImplementedError("Type is not train or test.")
-        print("image loaded")
         return output
 
 

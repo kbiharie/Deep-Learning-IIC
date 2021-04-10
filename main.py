@@ -71,23 +71,16 @@ def create_model(model_name):
         #     net.load_state_dict(torch.load(epoch_model_path))
         #     continue
         # For every batch
+        batch_time = time.time()
         for step, (img1, img2, flip, mask) in enumerate(train_dataloader):
-            print("batch", step)
+            print("batch", step - 1, "took", time.time() - batch_time)
             batch_time = time.time()
             img1 = img1.cuda()
             img2 = img2.cuda()
             mask = mask.cuda()
 
-            print(img1.shape, img2.shape, mask.shape)
-
-            print(time.time() - batch_time)
-            batch_time = time.time()
-
             img1 = sobel(img1)
             img2 = sobel(img2)
-
-            print(time.time() - batch_time)
-            batch_time = time.time()
 
             net.module.zero_grad()
             n_imgs = img1.shape[0]
@@ -98,9 +91,6 @@ def create_model(model_name):
             del img2
 
 
-            print(time.time() - batch_time)
-            batch_time = time.time()
-
             # TODO: is this the same dimension?
             for i in range(x2_outs.shape[0]):
                 if flip[i]:
@@ -108,9 +98,6 @@ def create_model(model_name):
 
             avg_loss_batch = None
             avg_loss_no_lamb_batch = None
-
-            print(time.time() - batch_time)
-            batch_time = time.time()
 
             loss, loss_no_lamb = loss_fn(x1_outs, x2_outs, all_mask_img1=mask)
 
@@ -125,9 +112,8 @@ def create_model(model_name):
             #
             # print(time.time() - batch_time)
             #
-            # total_loss += loss
-            # total_loss_no_lamb += loss_no_lamb
-            print("batch done")
+            total_loss += loss
+            total_loss_no_lamb += loss_no_lamb
         to_log = {"type": "epoch", "loss": total_loss.item(), "epoch": epoch, "duration": time.time() - start_time}
         log.append({"type": "epoch", "loss": total_loss.item(), "epoch": epoch, "duration": time.time() - start_time})
         all_losses.append(total_loss)
