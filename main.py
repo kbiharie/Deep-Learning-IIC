@@ -135,27 +135,19 @@ def eval(config, net, mapping_assignment_dataloader):
     torch.cuda.empty_cache()
     net.eval()
     test_accs = []
+    samples_per_batch = []
     matches = []
 
     for bnumber, curr_batch in enumerate(mapping_assignment_dataloader):
-        match, test_acc = subhead_eval(config, net,
-                                       (curr_batch, bnumber),
-                                       segmentation_data_method)
-        matches.append(match), test_accs.append(test_acc)
+        match, test_acc, total_samples = _get_assignment_data_matches(net,
+                                                                      curr_batch,
+                                                                      config,
+                                                                      segmentation_data_method)
+        test_accs.append(test_acc), samples_per_batch.append(total_samples), matches.append(match),
 
     net.train()
     torch.cuda.empty_cache()
     return matches, test_accs
-
-
-def subhead_eval(config, net, curr_batch, segmentation_data_method):
-
-    match, test_acc = _get_assignment_data_matches(net,
-                                                   curr_batch,
-                                                   config,
-                                                   segmentation_data_method)
-
-    return match, test_acc
 
 
 def _get_assignment_data_matches(net, curr_batch, config, segmentation_data_method):
@@ -176,7 +168,7 @@ def _get_assignment_data_matches(net, curr_batch, config, segmentation_data_meth
 
     acc = int((reordered_preds == labels_batch).sum()) / float(reordered_preds.shape[0])
 
-    return match, acc
+    return match, acc, reordered_preds.shape[0]
 
 
 def segmentation_data_method(config, net, curr_batch):
