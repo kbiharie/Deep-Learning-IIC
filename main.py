@@ -33,11 +33,8 @@ def create_model():
     # Set parameters
     config = create_config()
 
-    # Create train_imgs
-    # Create dataset
     dataset = CocoStuff3Dataset(config, "train")
 
-    # Create data loader
     train_dataloader = torch.utils.data.DataLoader(dataset,
                                                    batch_size=config.dataloader_batch_sz,
                                                    shuffle=config.shuffle,
@@ -51,8 +48,7 @@ def create_model():
 
     optimizer = torch.optim.Adam(net.module.parameters(), lr=0.0001)
 
-    epochs = 20
-    all_losses = []
+    epochs = 10
 
     log_file = time.strftime("../datasets/logs/%Y_%m_%d-%H_%M_%S_log.json")
 
@@ -60,67 +56,66 @@ def create_model():
     with open(log_file, "w") as w:
         json.dump(log, w)
 
+    heads = 2 if config.overclustering else 1
+
     # For every epoch
     for epoch in range(epochs):
-        print("epoch", epoch)
-        total_loss = 0
-        total_loss_no_lamb = 0
-        start_time = time.time()
         epoch_model_path = "../datasets/models/" + config.model_name + "_epoch_" + str(epoch) + ".pth"
         if os.path.exists(epoch_model_path) and config.existing_model:
             net.load_state_dict(torch.load(epoch_model_path))
             optimizer = torch.optim.Adam(net.module.parameters(), lr=0.0001)
             continue
-        # For every batch
-        batch_time = time.time()
-        for step, (img1, img2, flip, mask) in enumerate(train_dataloader):
-            print("batch", step - 1, "took", time.time() - batch_time)
+        for head in range(heads):
+            print("epoch", epoch)
+            print("head", head)
+            total_loss = 0
+            total_loss_no_lamb = 0
+            start_time = time.time()
+
+            # For every batch
             batch_time = time.time()
-            img1 = img1.cuda()
-            img2 = img2.cuda()
-            mask = mask.cuda()
+            for step, (img1, img2, flip, mask) in enumerate(train_dataloader):
+                print("batch", step - 1, "took", time.time() - batch_time)
+                batch_time = time.time()
+                if step == 5:
+                    break
+                img1 = img1.cuda()
+                img2 = img2.cuda()
+                mask = mask.cuda()
 
-            img1 = sobel(img1)
-            img2 = sobel(img2)
+                img1 = sobel(img1)
+                img2 = sobel(img2)
 
-            net.module.zero_grad()
-            n_imgs = img1.shape[0]
-            x1_outs = net(img1)
-            x2_outs = net(img2)
+                net.module.zero_grad()
+                x1_outs = net(img1, head)
+                x2_outs = net(img2, head)
 
-            del img1
-            del img2
+                del img1
+                del img2
 
+                for i in range(x2_outs.shape[0]):
+                    if flip[i]:
+                        x2_outs[i] = torch.flip(x2_outs[i], dims=[1])
 
-            # TODO: is this the same dimension?
-            for i in range(x2_outs.shape[0]):
-                if flip[i]:
-                    x2_outs[i] = torch.flip(x2_outs[i], dims=[1])
+                loss, loss_no_lamb = loss_fn(x1_outs, x2_outs, all_mask_img1=mask)
 
-            avg_loss_batch = None
-            avg_loss_no_lamb_batch = None
+                del x1_outs
+                del x2_outs
 
-            loss, loss_no_lamb = loss_fn(x1_outs, x2_outs, all_mask_img1=mask)
-
-            del x1_outs
-            del x2_outs
-
-            loss.backward()
-            optimizer.step()
-            total_loss += loss
-            total_loss_no_lamb += loss_no_lamb
-        to_log = {"type": "epoch", "loss": total_loss.item(), "epoch": epoch, "duration": time.time() - start_time,
-                  "finished": time.strftime("%Y_%m_%d-%H_%M_%S")}
-        log.append(to_log)
-        all_losses.append(total_loss)
+                loss.backward()
+                optimizer.step()
+                total_loss += loss
+                total_loss_no_lamb += loss_no_lamb
+            to_log = {"type": "epoch_" + str(head), "loss": total_loss.item(), "epoch": epoch, "duration": time.time() - start_time,
+                      "finished": time.strftime("%Y_%m_%d-%H_%M_%S")}
+            log.append(to_log)
+            with open(log_file, "r") as f:
+                old_log = json.load(f)
+            old_log.append(to_log)
+            with open(log_file, "w") as w:
+                json.dump(old_log, w)
+            print(total_loss.item())
         torch.save(net.state_dict(), epoch_model_path)
-        with open(log_file, "r") as f:
-            old_log = json.load(f)
-        old_log.append(to_log)
-        with open(log_file, "w") as w:
-            json.dump(old_log, w)
-
-        print(total_loss.item())
 
     torch.save(net.state_dict(), "../datasets/models/" + config.model_name + ".pth")
 
@@ -188,7 +183,7 @@ def _get_assignment_data_matches(net, curr_batch, config, segmentation_data_meth
     num_samples = num_test
 
     match = _original_match(predictions_batch, labels_batch, config.output_k, config.gt_k)
-    match = {0:1, 1:0, 2:2}
+    match = {0:1, 1:2, 2:0}
     found = torch.zeros(config.output_k)
     reordered_preds = torch.zeros(num_samples,
                                   dtype=predictions_batch.dtype).cuda()
