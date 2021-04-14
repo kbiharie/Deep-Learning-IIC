@@ -29,15 +29,17 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
         start = time.time()
 
         if self.random_crop:
-            x = np.random.randint(img.shape[1] - 128)
-            y = np.random.randint(img.shape[0] - 128)
+
+            x = np.random.randint(img.shape[1] - 128) if img.shape[1] > 128 else 0
+            y = np.random.randint(img.shape[0] - 128) if img.shape[0] > 128 else 0
+
         else:
             x = img.shape[1] / 2 - 64
             y = img.shape[0] / 2 - 64
         img = img[int(y):int(y + 128), int(x):int(x + 128)]
         label = label[int(y):int(y + 128), int(x):int(x + 128)]
 
-        _, mask_img1 = _filter_label(label)
+        _, mask_img1 = filter_label(label)
 
         mask_img1 = torch.from_numpy(mask_img1.astype(np.uint8))
 
@@ -74,7 +76,7 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
         # image to gpu
         img = torch.from_numpy(img).permute(2, 0, 1)
 
-        label, mask = _filter_label(label)
+        label, mask = filter_label(label)
 
         return img, torch.from_numpy(label), torch.from_numpy(mask.astype(np.uint8))
 
@@ -83,6 +85,7 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
         if not os.path.exists(image_path):
             print(image_path)
         label_path = get_label_path(image_path)
+        # print(image_path, label_path)
         img = cv2.imread(image_path, cv2.IMREAD_COLOR).astype(np.uint8)
         label = cv2.imread(label_path, cv2.IMREAD_GRAYSCALE).astype(np.uint32)
         img = img.astype(np.float32)
@@ -94,15 +97,19 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
                            fy=2 / 3,
                            interpolation=cv2.INTER_NEAREST)
 
+        if img.shape[1] < 128 or img.shape[0] < 128:
+            print(image_path)
+
         if self.purpose == "train":
-            return self._prepare_train(img, label)
+            output = self._prepare_train(img, label)
         elif self.purpose == "test":
-            return self._prepare_test(img, label)
+            output = self._prepare_test(img, label)
         else:
             raise NotImplementedError("Type is not train or test.")
+        return output
 
 
-def _filter_label(label):
+def filter_label(label):
     # print(label)
     new_label_map = -1 * np.ones(label.shape, dtype=label.dtype)
     sky_labels = [105, 156]

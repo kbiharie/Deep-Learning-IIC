@@ -1,5 +1,4 @@
 
-
 def create_config():
 
     config = type('config', (object,), {})()
@@ -9,8 +8,10 @@ def create_config():
     config.gt_k = 3
     config.shuffle = True
     config.filenames = "../datasets/filenamescoco.json"
-    config.existing_model = False
-    config.model_name = "coco3"
+
+    config.existing_model = True
+    config.num_workers = 2
+    config.model_name = "coco3_lr"
 
     config.jitter_brightness = 0.4
     config.jitter_contrast = 0.4

@@ -29,7 +29,7 @@ def transform_single_image(img_path):
     cv2.waitKey(0)
 
 
-def create_model(model_name):
+def create_model():
     # Set parameters
     config = create_config()
 
@@ -41,7 +41,7 @@ def create_model(model_name):
     train_dataloader = torch.utils.data.DataLoader(dataset,
                                                    batch_size=config.dataloader_batch_sz,
                                                    shuffle=config.shuffle,
-                                                   num_workers=4,
+                                                   num_workers=config.num_workers,
                                                    drop_last=False)
 
     net = IICNet(config)
@@ -49,9 +49,9 @@ def create_model(model_name):
     net = torch.nn.DataParallel(net)
     net.train()
 
-    optimizer = torch.optim.Adam(net.module.parameters(), lr=0.1)
+    optimizer = torch.optim.Adam(net.module.parameters(), lr=0.0001)
 
-    epochs = 5
+    epochs = 20
     all_losses = []
 
     log_file = time.strftime("../datasets/logs/%Y_%m_%d-%H_%M_%S_log.json")
@@ -66,14 +66,16 @@ def create_model(model_name):
         total_loss = 0
         total_loss_no_lamb = 0
         start_time = time.time()
-        epoch_model_path = "../datasets/models/" + model_name + "_epoch_" + str(epoch) + ".pth"
+        epoch_model_path = "../datasets/models/" + config.model_name + "_epoch_" + str(epoch) + ".pth"
         if os.path.exists(epoch_model_path) and config.existing_model:
             net.load_state_dict(torch.load(epoch_model_path))
-            optimizer = torch.optim.Adam(net.module.parameters(), lr=0.1)
+            optimizer = torch.optim.Adam(net.module.parameters(), lr=0.0001)
             continue
         # For every batch
+        batch_time = time.time()
         for step, (img1, img2, flip, mask) in enumerate(train_dataloader):
-            print("batch", step)
+            print("batch", step - 1, "took", time.time() - batch_time)
+            batch_time = time.time()
             img1 = img1.cuda()
             img2 = img2.cuda()
             mask = mask.cuda()
@@ -86,6 +88,10 @@ def create_model(model_name):
             x1_outs = net(img1)
             x2_outs = net(img2)
 
+            del img1
+            del img2
+
+
             # TODO: is this the same dimension?
             for i in range(x2_outs.shape[0]):
                 if flip[i]:
@@ -95,13 +101,17 @@ def create_model(model_name):
             avg_loss_no_lamb_batch = None
 
             loss, loss_no_lamb = loss_fn(x1_outs, x2_outs, all_mask_img1=mask)
+
+            del x1_outs
+            del x2_outs
+
             loss.backward()
             optimizer.step()
-
             total_loss += loss
             total_loss_no_lamb += loss_no_lamb
-        to_log = {"type": "epoch", "loss": total_loss.item(), "epoch": epoch, "duration": time.time() - start_time}
-        log.append({"type": "epoch", "loss": total_loss.item(), "epoch": epoch, "duration": time.time() - start_time})
+        to_log = {"type": "epoch", "loss": total_loss.item(), "epoch": epoch, "duration": time.time() - start_time,
+                  "finished": time.strftime("%Y_%m_%d-%H_%M_%S")}
+        log.append(to_log)
         all_losses.append(total_loss)
         torch.save(net.state_dict(), epoch_model_path)
         with open(log_file, "r") as f:
@@ -112,7 +122,7 @@ def create_model(model_name):
 
         print(total_loss.item())
 
-    torch.save(net.state_dict(), "../datasets/models/" + model_name + ".pth")
+    torch.save(net.state_dict(), "../datasets/models/" + config.model_name + ".pth")
 
 
 def evaluate():
@@ -127,10 +137,9 @@ def evaluate():
 
     mapping_assignment_dataloader = torch.utils.data.DataLoader(CocoStuff3Dataset(config, "test"),
                                                    batch_size=config.dataloader_batch_sz,
-                                                   shuffle=config.shuffle,
+                                                   shuffle=False,
                                                    num_workers=4,
                                                    drop_last=False)
-
     match, test_acc = eval(config,
                            net,
                            mapping_assignment_dataloader)
@@ -148,7 +157,7 @@ def eval(config, net, mapping_assignment_dataloader):
     start_time = time.time()
 
     for bnumber, curr_batch in enumerate(mapping_assignment_dataloader):
-        if bnumber % 10 == 0:
+        if bnumber % 20 == 0:
             print(bnumber, time.time() - start_time)
         match, test_acc, batch_samples = _get_assignment_data_matches(net,
                                                                       (bnumber, curr_batch),
@@ -157,8 +166,8 @@ def eval(config, net, mapping_assignment_dataloader):
         test_accs += test_acc * batch_samples
         samples += batch_samples
         matches.append(match)
-        if bnumber == 100:
-            break
+        # if bnumber == 100:
+        #     break
 
     net.train()
     torch.cuda.empty_cache()
@@ -231,9 +240,12 @@ def loss_fn(x1_outs, x2_outs, all_affine2_to_1=None,
             half_T_side_sparse_min=0,
             half_T_side_sparse_max=0):
     # TODO: perform inverse affine transformation
+    half_T_side_dense = 10
+
     x2_outs_inv = x2_outs
 
-    all_mask_img1 = all_mask_img1.view(x1_outs.shape[0], 1, x1_outs.shape[2], x1_outs.shape[3])
+    bn, k, h, w = x1_outs.shape
+    all_mask_img1 = all_mask_img1.view(bn, 1, h, w)
     x1_outs = x1_outs * all_mask_img1
     x2_outs_inv = x2_outs_inv * all_mask_img1
 
@@ -242,26 +254,40 @@ def loss_fn(x1_outs, x2_outs, all_affine2_to_1=None,
 
     p_i_j = torch.nn.functional.conv2d(x1_outs, weight=x2_outs_inv,
                                        padding=(half_T_side_dense, half_T_side_dense))
-    p_i_j = p_i_j.sum(dim=2, keepdim=False).sum(dim=2, keepdim=False)
 
-    current_norm = float(p_i_j.sum())
-    p_i_j = p_i_j / current_norm
-    p_i_j = (p_i_j + p_i_j.t()) / 2.
+    # COLLAPSED
+    # p_i_j = p_i_j.sum(dim=2, keepdim=False).sum(dim=2, keepdim=False)
+    #
+    # current_norm = float(p_i_j.sum())
+    # p_i_j = p_i_j / current_norm
+    # p_i_j = (p_i_j + p_i_j.t()) / 2.
+    #
+    # p_i_mat = p_i_j.sum(dim=1).unsqueeze(1)
+    # p_j_mat = p_i_j.sum(dim=0).unsqueeze(0)
 
-    p_i_mat = p_i_j.sum(dim=1).unsqueeze(1)
-    p_j_mat = p_i_j.sum(dim=0).unsqueeze(0)
+    # UNCOLLAPSED
+    p_i_j = p_i_j.permute(2,3,0,1)
+    p_i_j = p_i_j / p_i_j.sum(dim=3, keepdim=True).sum(dim=2, keepdim=True)
+    p_i_j = (p_i_j + p_i_j.permute(0,1,3,2)) / 2.
 
+    p_i_mat = p_i_j.sum(dim=2, keepdim=True).repeat(1,1,k,1)
+    p_j_mat = p_i_j.sum(dim=3, keepdim=True).repeat(1,1,1,k)
+
+    # CONTINUE
     EPS = sys.float_info.epsilon
 
     p_i_j[(p_i_j < EPS).data] = EPS
     p_i_mat[(p_i_mat < EPS).data] = EPS
     p_j_mat[(p_j_mat < EPS).data] = EPS
 
+    T_side_dense = half_T_side_dense * 2 + 1
+
+    # Removed minus in front of p_i_j!!
     loss = (-p_i_j * (torch.log(p_i_j) - lamb * torch.log(p_i_mat) -
-                      lamb * torch.log(p_j_mat))).sum()
+                      lamb * torch.log(p_j_mat))).sum() / (T_side_dense * T_side_dense)
 
     loss_no_lamb = (-p_i_j * (torch.log(p_i_j) - torch.log(p_i_mat) -
-                              torch.log(p_j_mat))).sum()
+                              torch.log(p_j_mat))).sum() / (T_side_dense * T_side_dense)
 
     return loss, loss_no_lamb
 
@@ -273,6 +299,91 @@ def display_image():
         img1, img2, flip, mask = dataset.__getitem__(i)
         display_output_image_and_output(img1, mask)
 
+def test_loss():
+    test = "../images/test2.jpg"
+    test_gt = "../images/test2.png"
+
+    img = cv2.imread(test, cv2.IMREAD_COLOR).astype(np.uint8)
+    label = cv2.imread(test_gt, cv2.IMREAD_GRAYSCALE).astype(np.uint32)
+    img = img.astype(np.float32)
+    label = label.astype(np.int32)
+
+    img = cv2.resize(img, dsize=None, fx=2 / 3, fy=2 / 3,
+                     interpolation=cv2.INTER_LINEAR)
+    label = cv2.resize(label, dsize=None, fx=2 / 3,
+                       fy=2 / 3,
+                       interpolation=cv2.INTER_NEAREST)
+
+    x = img.shape[1] / 2 - 64
+    y = img.shape[0] / 2 - 64
+
+    img = img[int(y):int(y + 128), int(x):int(x + 128)]
+    label = label[int(y):int(y + 128), int(x):int(x + 128)]
+    img = img.astype(np.float32) / 255.
+    grey = grey_image(img)
+    grey = torch.from_numpy(grey).permute(2, 0, 1)
+    img = torch.from_numpy(img).permute(2, 0, 1)
+    label, mask = filter_label(label)
+
+    label, mask = torch.from_numpy(label), torch.from_numpy(mask.astype(np.uint8))
+
+    input = grey.cuda()
+    flipped_input = torch.flip(input, dims=[1])
+
+    inputs = torch.zeros([1, 4, input.shape[1], input.shape[2]]).cuda()
+    inputs[0] = input
+    config = create_config()
+    model_path = "../datasets/models/" + "coco3" + "_epoch_1.pth"
+
+    net = IICNet(config)
+    net.cuda()
+    net = torch.nn.DataParallel(net)
+    net.load_state_dict(torch.load(model_path))
+    net.eval()
+
+    output1 = net(sobel(inputs))
+    inputs[0] = flipped_input
+    output2 = torch.flip(net(sobel(inputs)), dims=[1])
+
+    out_display = torch.zeros([3, label.shape[0], label.shape[1]])
+
+    out_display[0, label == 0] = 1
+    out_display[1, label == 1] = 1
+    out_display[2, label == 2] = 1
+
+    imgs1 = torch.zeros([1, img.shape[0], img.shape[1], img.shape[2]])
+    imgs2 = torch.zeros([1, img.shape[0], img.shape[1], img.shape[2]])
+    masks = torch.zeros([1, mask.shape[0], mask.shape[1]])
+    imgs1[0] = img
+    imgs2[0] = out_display
+    masks[0] = mask
+
+    print(loss_fn(imgs2, imgs2, all_mask_img1=masks)[0])
+    print(loss_fn(output1, output2, all_mask_img1=masks.cuda())[0])
+
+    out_display[0,:,:] = 1
+    out_display[1,:,:] = 0
+    out_display[2,:,:] = 0
+    imgs2[0] = out_display
+    # print(loss_fn(imgs1, imgs2, all_mask_img1=masks)[0])
+
+    out_display = out_display * mask
+    out_display = out_display.permute(1, 2, 0)
+    out_display = out_display.numpy()
+
+    in_display = img.permute(1,2,0)
+
+    masked_display = img * mask
+    masked_display = masked_display.permute(1, 2, 0)
+    masked_display = masked_display.numpy()
+
+    print(in_display.shape, masked_display.shape, out_display.shape)
+
+    display = np.concatenate((in_display, masked_display, out_display), axis=1)
+
+    cv2.imshow("window", display)
+    cv2.waitKey(0)
+
 
 if __name__ == "__main__":
     # with open("../annotations/stuff_train2017.json") as f:
@@ -283,10 +394,11 @@ if __name__ == "__main__":
     # cocostuff_clean(ids, annotations, "../datasets/train2017")
 
     # transform_single_image("../datasets/val2017/000000001532.jpg")
-    # create_model()
+    create_model()
     # prep_data.cocostuff3_write_filenames()
     # create_model("coco3")
     # prep_data.cocostuff_crop()
     # prep_data.cocostuff_clean_with_json(True)
     # display_image()
-    evaluate()
+    # evaluate()
+    # test_loss()

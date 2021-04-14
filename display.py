@@ -16,7 +16,7 @@ def display_output_image_and_output(image, mask):
     in_display, masked_display = display_dataset_image(image, mask)
 
     config = create_config()
-    model_path = "../datasets/models/coco3.pth"
+    model_path = "../datasets/models/" + config.model_name +".pth"
 
     net = IICNet(config)
     net.cuda()
@@ -33,13 +33,30 @@ def display_output_image_and_output(image, mask):
 
     out_display = net(imgs)
     out_display = out_display[0]
+    print(out_display.shape)
     out_display = out_display * mask
     out_display = out_display.permute(1, 2, 0)
+
+    rgb = torch.zeros([out_display.shape[0], out_display.shape[1], out_display.shape[2]])
+
+    out_display_max = torch.argmax(out_display, dim=2)
     out_display = out_display.cpu().detach().numpy()
+
+    rgb = rgb.permute(2,0,1)
+    rgb[0][out_display_max == 0] = 1
+    rgb[1][out_display_max == 1] = 1
+    rgb[2][out_display_max == 2] = 1
+    mask = mask.cpu().detach()
+    rgb = rgb * mask
+    rgb = rgb.permute(1, 2, 0)
+
+    print(out_display[10:20,10:20,:])
+
+
 
     # TODO: take arg max of out_display
 
-    display = np.concatenate((in_display, masked_display, out_display), axis=1)
+    display = np.concatenate((in_display, masked_display, out_display, rgb), axis=1)
 
     cv2.imshow("window", display)
     cv2.waitKey(0)
