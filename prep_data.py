@@ -4,36 +4,44 @@ import PIL.Image
 import glob
 import math
 
-def cocostuff_ids(data):
+def cocostuff_ids(data, mode="coco"):
 
     min_len = 192
     things_category = 183
     stuff_ratio = 0.75
     stuff_pixels = {}
 
+    cats_to_keep = set()
+    for cat in data["categories"]:
+        if cat["supercategory"] == "sky" or cat["supercategory"] == "ground" or cat["supercategory"] == "plant":
+            cats_to_keep.add(cat["id"])
+
     for img in data["images"]:
         if img["height"] >= min_len and img["width"] >= min_len:
-            stuff_pixels[img["id"]] = {"total": img["height"] * img["width"], "sum": 0}
+            stuff_pixels[img["id"]] = {"total": img["height"] * img["width"], "sum": 0, "coco3": 0}
 
     for img in data["annotations"]:
         if img["image_id"] in stuff_pixels and img["category_id"] != things_category:
             stuff_pixels[img["image_id"]]["sum"] += img["area"]
+            if img["category_id"] in cats_to_keep:
+                stuff_pixels[img["image_id"]]["coco3"] += img["area"]
 
     valid_ids = []
 
     for id in stuff_pixels:
-        if stuff_pixels[id]["sum"] / stuff_pixels[id]["total"] > stuff_ratio:
+        if stuff_pixels[id]["sum"] / stuff_pixels[id]["total"] > stuff_ratio and \
+                (mode == "coco" or stuff_pixels[id]["coco3"] / stuff_pixels[id]["total"] > 0.75):
             valid_ids.append(id)
 
     return valid_ids
 
 
 def cocostuff3_ids(data):
-    ids = cocostuff_ids(data)
+    ids = cocostuff_ids(data, "coco3")
     ids_to_keep = set()
     cats_to_keep = set()
     for cat in data["categories"]:
-        if cat["supercategory"] == "sky" or cat["supercategory"] == "ground" or cat["supercategory"] == "plant" and cat["id"] in ids:
+        if cat["supercategory"] == "sky" or cat["supercategory"] == "ground" or cat["supercategory"] == "plant":
             cats_to_keep.add(cat["id"])
 
     for img in data["annotations"]:
@@ -62,7 +70,8 @@ def cocostuff3_write_filenames():
     train_files = cocostuff3_dict_ids(train_ids, train_annotations, "../datasets/train2017/")
     valid_files = cocostuff3_dict_ids(valid_ids, valid_annotations, "../datasets/val2017/")
     print("writing to file")
-    with open("../datasets/filenames.json", "w") as w:
+    print(len(train_files + valid_files))
+    with open("../datasets/filenamescocofew.json", "w") as w:
         json.dump(train_files + valid_files, w)
 
 def cocostuff_clean(ids, ann, img_dir):
@@ -102,7 +111,7 @@ def cocostuff_crop():
         print(count)
 
 def cocostuff_clean_with_json(groundtruth=False):
-    with open("../datasets/filenamescoco.json") as f:
+    with open("../datasets/filenamescocofew.json") as f:
         filenames = json.load(f)
     count = 0
     paths = []
@@ -118,7 +127,7 @@ def cocostuff_clean_with_json(groundtruth=False):
 
     folders = ["../datasets/traingt2017/", "../datasets/valgt2017/"]
     for folder in folders:
-        for path in glob.glob(folder + "*.png"):
+        for path in glob.glob(folder + "*.*"):
             path = path.replace("\\", "/")
             if path not in paths:
                 files_to_remove.append(path)

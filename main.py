@@ -156,6 +156,8 @@ def eval(config, net, mapping_assignment_dataloader):
 
     start_time = time.time()
 
+    seq = {}
+
     for bnumber, curr_batch in enumerate(mapping_assignment_dataloader):
         if bnumber % 20 == 0:
             print(bnumber, time.time() - start_time)
@@ -166,11 +168,16 @@ def eval(config, net, mapping_assignment_dataloader):
         test_accs += test_acc * batch_samples
         samples += batch_samples
         matches.append(match)
-        # if bnumber == 100:
-        #     break
+        matchstr = "".join([str(match[x]) for x in match])
+        if matchstr not in seq:
+            seq[matchstr] = 0
+        seq[matchstr] += 1
+        if bnumber == 100:
+            break
 
     net.train()
     torch.cuda.empty_cache()
+    print(seq)
     return matches, test_accs / samples
 
 
@@ -181,7 +188,7 @@ def _get_assignment_data_matches(net, curr_batch, config, segmentation_data_meth
     num_samples = num_test
 
     match = _original_match(predictions_batch, labels_batch, config.output_k, config.gt_k)
-
+    match = {0:1, 1:0, 2:2}
     found = torch.zeros(config.output_k)
     reordered_preds = torch.zeros(num_samples,
                                   dtype=predictions_batch.dtype).cuda()
@@ -299,6 +306,7 @@ def display_image():
         img1, img2, flip, mask = dataset.__getitem__(i)
         display_output_image_and_output(img1, mask)
 
+
 def test_loss():
     test = "../images/test2.jpg"
     test_gt = "../images/test2.png"
@@ -396,7 +404,7 @@ if __name__ == "__main__":
     # transform_single_image("../datasets/val2017/000000001532.jpg")
     create_model()
     # prep_data.cocostuff3_write_filenames()
-    # create_model("coco3")
+    # dataset = CocoStuff3Dataset(create_config(), "train")
     # prep_data.cocostuff_crop()
     # prep_data.cocostuff_clean_with_json(True)
     # display_image()

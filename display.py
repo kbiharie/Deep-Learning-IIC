@@ -6,9 +6,10 @@ from dataset import *
 def display_dataset_image(image, mask):
     if image.shape[0] == 4:
         image = image[:3, :, :]
-    masked = image * mask.view(1, image.shape[1], image.shape[2])
+    # masked = image * mask.view(1, image.shape[1], image.shape[2])
     image = image.permute(1, 2, 0)
-    masked = masked.permute(1, 2, 0)
+    # masked = masked.permute(1, 2, 0)
+    masked = None
     return image, masked
 
 
@@ -50,13 +51,11 @@ def display_output_image_and_output(image, mask):
     rgb = rgb * mask
     rgb = rgb.permute(1, 2, 0)
 
-    print(out_display[10:20,10:20,:])
-
-
+    # print(out_display[10:20,10:20,:])
 
     # TODO: take arg max of out_display
 
-    display = np.concatenate((in_display, masked_display, out_display, rgb), axis=1)
+    display = np.concatenate((in_display, out_display, rgb), axis=1)
 
     cv2.imshow("window", display)
     cv2.waitKey(0)
