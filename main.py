@@ -48,7 +48,7 @@ def create_model():
 
     optimizer = torch.optim.Adam(net.module.parameters(), lr=0.0001)
 
-    epochs = 10
+    epochs = 20
 
     log_file = time.strftime("../datasets/logs/%Y_%m_%d-%H_%M_%S_log.json")
 
@@ -77,8 +77,6 @@ def create_model():
             for step, (img1, img2, flip, mask) in enumerate(train_dataloader):
                 print("batch", step - 1, "took", time.time() - batch_time)
                 batch_time = time.time()
-                if step == 5:
-                    break
                 img1 = img1.cuda()
                 img2 = img2.cuda()
                 mask = mask.cuda()
