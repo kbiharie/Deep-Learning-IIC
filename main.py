@@ -48,7 +48,7 @@ def create_model():
 
     optimizer = torch.optim.Adam(net.module.parameters(), lr=0.0001)
 
-    epochs = 20
+    epochs = 5
 
     log_file = time.strftime("../datasets/logs/%Y_%m_%d-%H_%M_%S_log.json")
 
@@ -61,13 +61,28 @@ def create_model():
     # For every epoch
     for epoch in range(epochs):
         epoch_model_path = "../datasets/models/" + config.model_name + "_epoch_" + str(epoch) + ".pth"
+        optimizer_path = "../datasets/models/" + config.model_name + "_epoch_" + str(epoch) + ".pt"
         if os.path.exists(epoch_model_path) and config.existing_model:
             net.load_state_dict(torch.load(epoch_model_path))
-            optimizer = torch.optim.Adam(net.module.parameters(), lr=0.0001)
+            if os.path.exists(optimizer_path):
+                optimizer.load_state_dict(torch.load(optimizer_path))
             continue
         for head in range(heads):
             print("epoch", epoch)
             print("head", head)
+
+            if head == 0:
+                headstr = "A"
+            elif head == 1:
+                headstr = "B"
+            epoch_head_path = "../datasets/models/" + config.model_name + "_epoch_" + str(epoch) + headstr + ".pth"
+            optimizer_head_path = "../datasets/models/" + config.model_name + "_epoch_" + str(epoch) + headstr + ".pt"
+            if os.path.exists(epoch_head_path) and config.existing_model:
+                net.load_state_dict(torch.load(epoch_head_path))
+                if os.path.exists(optimizer_head_path):
+                    optimizer.load_state_dict(torch.load(optimizer_head_path))
+                continue
+
             total_loss = 0
             total_loss_no_lamb = 0
             start_time = time.time()
@@ -77,6 +92,8 @@ def create_model():
             for step, (img1, img2, flip, mask) in enumerate(train_dataloader):
                 print("batch", step - 1, "took", time.time() - batch_time)
                 batch_time = time.time()
+                if head == 1 and step >= 150:
+                    break
                 img1 = img1.cuda()
                 img2 = img2.cuda()
                 mask = mask.cuda()
@@ -104,6 +121,7 @@ def create_model():
                 optimizer.step()
                 total_loss += loss
                 total_loss_no_lamb += loss_no_lamb
+                del loss, loss_no_lamb
             to_log = {"type": "epoch_" + str(head), "loss": total_loss.item(), "epoch": epoch, "duration": time.time() - start_time,
                       "finished": time.strftime("%Y_%m_%d-%H_%M_%S")}
             log.append(to_log)
@@ -113,9 +131,13 @@ def create_model():
             with open(log_file, "w") as w:
                 json.dump(old_log, w)
             print(total_loss.item())
+            torch.save(net.state_dict(), epoch_head_path)
+            torch.save(optimizer.state_dict(), optimizer_head_path)
         torch.save(net.state_dict(), epoch_model_path)
+        torch.save(optimizer.state_dict(), optimizer_path)
 
     torch.save(net.state_dict(), "../datasets/models/" + config.model_name + ".pth")
+    torch.save(optimizer.state_dict(), "../datasets/models/" + config.model_name + ".pt")
 
 
 def evaluate():
@@ -131,7 +153,7 @@ def evaluate():
     mapping_assignment_dataloader = torch.utils.data.DataLoader(CocoStuff3Dataset(config, "test"),
                                                    batch_size=config.dataloader_batch_sz,
                                                    shuffle=False,
-                                                   num_workers=4,
+                                                   num_workers=config.num_workers,
                                                    drop_last=False)
     match, test_acc = eval(config,
                            net,
@@ -165,8 +187,8 @@ def eval(config, net, mapping_assignment_dataloader):
         if matchstr not in seq:
             seq[matchstr] = 0
         seq[matchstr] += 1
-        if bnumber == 100:
-            break
+        # if bnumber == 100:
+        #     break
 
     net.train()
     torch.cuda.empty_cache()
@@ -181,7 +203,7 @@ def _get_assignment_data_matches(net, curr_batch, config, segmentation_data_meth
     num_samples = num_test
 
     match = _original_match(predictions_batch, labels_batch, config.output_k, config.gt_k)
-    match = {0:1, 1:2, 2:0}
+    # match = {0:2, 1:0, 2:1}
     found = torch.zeros(config.output_k)
     reordered_preds = torch.zeros(num_samples,
                                   dtype=predictions_batch.dtype).cuda()
