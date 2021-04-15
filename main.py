@@ -51,10 +51,10 @@ def create_model():
 
     optimizer = torch.optim.Adam(net.module.parameters(), lr=0.0001)
 
-    epochs = 20
+    epochs = 30
     all_losses = []
 
-    log_file = time.strftime("../datasets/logs/%Y_%m_%d-%H_%M_%S_log.json")
+    log_file = time.strftime("../datasetscopy/logs/%Y_%m_%d-%H_%M_%S_log.json")
 
     log = []
     with open(log_file, "w") as w:
@@ -66,7 +66,7 @@ def create_model():
         total_loss = 0
         total_loss_no_lamb = 0
         start_time = time.time()
-        epoch_model_path = "../datasets/models/" + config.model_name + "_epoch_" + str(epoch) + ".pth"
+        epoch_model_path = "../datasetscopy/models/" + config.model_name + "_epoch_" + str(epoch) + ".pth"
         if os.path.exists(epoch_model_path) and config.existing_model:
             net.load_state_dict(torch.load(epoch_model_path))
             optimizer = torch.optim.Adam(net.module.parameters(), lr=0.0001)
@@ -122,7 +122,7 @@ def create_model():
 
         print(total_loss.item())
 
-    torch.save(net.state_dict(), "../datasets/models/" + config.model_name + ".pth")
+    torch.save(net.state_dict(), "../datasetscopy/models/" + config.model_name + ".pth")
 
 
 def evaluate():
