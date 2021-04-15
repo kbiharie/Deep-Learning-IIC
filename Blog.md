@@ -58,6 +58,34 @@ how exactly to execute these transformations, i.e. at what percentage to do a ho
 Since we wanted to reproduce the results as accurately as possible, we looked into the code and used the same numbers for
 the transformations. We also used the same loss function and the backwards step from PyTorch [ref] was used.
 
+For the training, we are not able to train it for 4800 epochs due to time constraints. Instead, we trained it for 24 hours. In those 24 hours, we were able to train for
+
+x
+
+epochs. Finally, we were able to achieve an accuracy of
+
+x
+
+%. There are several reason why there is a difference in accuracy. One of the reason is the difference in our network. We did not implement overclustering in our process of training the model. We also did not train the model for the same number of epochs, but since we were already able to achieve an accuracy of
+
+x
+
+%, we believe that each additional epoch would only improve the accuracy by a very small amount. Despite these differences, we believe that the reproduction itself was a success. Judging by the results, however, we do believe that there is improvement to be made. In the paper, the authors gave the images in figure [Z] as results.
+
+[Insert image of tennis court and rail road, Z]
+
+Given that the accuracy is 72.3%, it is hard to believe that all results look the same. Figure [X] shows some really good results outputted from out model.
+
+[Insert image of giraffe and road, X]
+
+However, as one might suspect, it is impossible to have these results but have an accuracy of merely
+
+x
+
+%. That is correct, figure [Y] shows some really bad results from the same model.
+
+[Insert bad results, Y]
+
 
 ## Conclusion
 
