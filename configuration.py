@@ -9,7 +9,7 @@ def create_config():
 
     config.existing_model = True
     config.num_workers = 2
-    config.model_name = "coco3_oc_epoch_0"
+    config.model_name = "coco3"
 
     config.jitter_brightness = 0.4
     config.jitter_contrast = 0.4

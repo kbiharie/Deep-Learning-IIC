@@ -1,5 +1,6 @@
 import torch
 import time
+from itertools import permutations
 
 from configuration import create_config
 from model import IICNet
@@ -89,36 +90,56 @@ def get_assignment_data_matches(net, curr_batch, config):
 def segmentation_data_method(net, curr_batch):
     batch_number, batch = curr_batch
     imgs, labels, mask = batch
-
     imgs = imgs.cuda()
     imgs = sobel(imgs)
 
     with torch.no_grad():
         x_outs = net(imgs)
 
+    # Retrieve best classes
     batch_pred = torch.argmax(x_outs, dim=1)
 
-    # vectorise stuff view(-1)
+    # Images to gpu
     predictions_batch = batch_pred.view(-1).cuda()
     labels_batch = labels.view(-1).cuda()
     mask_batch = mask.view(-1).cuda()
 
+    # Only keep masked parts
     predictions_batch = predictions_batch.masked_select(mask=mask_batch)
     labels_batch = labels_batch.masked_select(mask=mask_batch)
 
     return predictions_batch, labels_batch
 
 
-def original_match(predictions_batch, labels_batch, preds_k, labels_k):
-    # map each output channel to the best matching ground truth (many to one)
+def original_match(predictions_batch, labels_batch, preds_k, labels_k, distinct=False):
 
+    # Map each output channel to the best matching ground truth
     out_to_gts = {}
-    out_to_gts_scores = {}
+    out_to_gts_best_scores = {}
+    out_to_gts_scores = {out_c: {} for out_c in range(preds_k)}
     for out_c in range(preds_k):
         for gt_c in range(labels_k):
-            # the amount of out_c at all the gt_c samples
+            # Calculate score
             tp_score = int(((predictions_batch == out_c) * (labels_batch == gt_c)).sum())
-            if (out_c not in out_to_gts) or (tp_score > out_to_gts_scores[out_c]):
+            # Store best score
+            if (out_c not in out_to_gts) or (tp_score > out_to_gts_best_scores[out_c]):
                 out_to_gts[out_c] = gt_c
-                out_to_gts_scores[out_c] = tp_score
+                out_to_gts_best_scores[out_c] = tp_score
+            out_to_gts_scores[out_c][gt_c] = tp_score
+
+    if not distinct:
+        return out_to_gts
+
+    # If distinct, do one to one matching
+    perms = set(permutations(range(preds_k)))
+    best_score = -1
+    for perm in perms:
+        tp_score = 0
+        for out_c in range(preds_k):
+            tp_score += out_to_gts_scores[out_c][perm[out_c]]
+        if tp_score >= best_score:
+            best_score = tp_score
+            for out_c in range(preds_k):
+                out_to_gts[out_c] = perm[out_c]
+
     return out_to_gts
