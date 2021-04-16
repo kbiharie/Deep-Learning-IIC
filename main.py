@@ -137,7 +137,7 @@ def evaluate():
 
     mapping_assignment_dataloader = torch.utils.data.DataLoader(CocoStuff3Dataset(config, "test"),
                                                    batch_size=config.dataloader_batch_sz,
-                                                   shuffle=False,
+                                                   shuffle=config.shuffle,
                                                    num_workers=4,
                                                    drop_last=False)
     match, test_acc = eval(config,
@@ -172,8 +172,10 @@ def eval(config, net, mapping_assignment_dataloader):
         if matchstr not in seq:
             seq[matchstr] = 0
         seq[matchstr] += 1
-        if bnumber == 100:
-            break
+        if bnumber % 20 == 0:
+            print(test_accs / samples)
+        # if bnumber == 100:
+        #     break
 
     net.train()
     torch.cuda.empty_cache()
@@ -188,7 +190,7 @@ def _get_assignment_data_matches(net, curr_batch, config, segmentation_data_meth
     num_samples = num_test
 
     match = _original_match(predictions_batch, labels_batch, config.output_k, config.gt_k)
-    match = {0:1, 1:0, 2:2}
+    match = {0:2, 1:1, 2:0}
     found = torch.zeros(config.output_k)
     reordered_preds = torch.zeros(num_samples,
                                   dtype=predictions_batch.dtype).cuda()
@@ -301,10 +303,14 @@ def loss_fn(x1_outs, x2_outs, all_affine2_to_1=None,
 
 def display_image():
     config = create_config()
-    dataset = CocoStuff3Dataset(config, "train")
-    for i in range(10, len(dataset)):
-        img1, img2, flip, mask = dataset.__getitem__(i)
-        display_output_image_and_output(img1, mask)
+    dataset = CocoStuff3Dataset(config, "test")
+    id = 30
+    while True:
+        # id = np.random.randint(len(dataset))
+        img1, label, mask = dataset.__getitem__(id)
+        print(id)
+        display_output_image_and_output(img1, None)
+        id += 1
 
 
 def test_loss():
@@ -402,11 +408,11 @@ if __name__ == "__main__":
     # cocostuff_clean(ids, annotations, "../datasets/train2017")
 
     # transform_single_image("../datasets/val2017/000000001532.jpg")
-    create_model()
+    # create_model()
     # prep_data.cocostuff3_write_filenames()
     # dataset = CocoStuff3Dataset(create_config(), "train")
     # prep_data.cocostuff_crop()
     # prep_data.cocostuff_clean_with_json(True)
-    # display_image()
+    display_image()
     # evaluate()
     # test_loss()

@@ -37,11 +37,11 @@ def cocostuff_ids(data, mode="coco"):
 
 
 def cocostuff3_ids(data):
-    ids = cocostuff_ids(data, "coco3")
+    ids = cocostuff_ids(data, "coco")
     ids_to_keep = set()
     cats_to_keep = set()
     for cat in data["categories"]:
-        if cat["supercategory"] == "sky" or cat["supercategory"] == "ground" or cat["supercategory"] == "plant":
+        if cat["supercategory"] == "sky" or cat["supercategory"] == "ground" or cat["supercategory"] == "plant" and cat["id"] in ids:
             cats_to_keep.add(cat["id"])
 
     for img in data["annotations"]:
@@ -71,7 +71,7 @@ def cocostuff3_write_filenames():
     valid_files = cocostuff3_dict_ids(valid_ids, valid_annotations, "../datasets/val2017/")
     print("writing to file")
     print(len(train_files + valid_files))
-    with open("../datasets/filenamescocofew.json", "w") as w:
+    with open("../datasets/filenamescoco.json", "w") as w:
         json.dump(train_files + valid_files, w)
 
 def cocostuff_clean(ids, ann, img_dir):

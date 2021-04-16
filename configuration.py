@@ -12,7 +12,6 @@ def create_config():
     config.existing_model = True
     config.num_workers = 2
     config.model_name = "coco3_lr"
-
     config.jitter_brightness = 0.4
     config.jitter_contrast = 0.4
     config.jitter_saturation = 0.4

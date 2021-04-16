@@ -44,18 +44,29 @@ def display_output_image_and_output(image, mask):
     out_display = out_display.cpu().detach().numpy()
 
     rgb = rgb.permute(2,0,1)
-    rgb[0][out_display_max == 0] = 1
-    rgb[1][out_display_max == 1] = 1
-    rgb[2][out_display_max == 2] = 1
-    mask = mask.cpu().detach()
-    rgb = rgb * mask
+    print(rgb.shape)
+    rgb[0][out_display_max == 0] = 0.17
+    rgb[1][out_display_max == 0] = 0.50
+    rgb[2][out_display_max == 0] = 0.27
+
+    rgb[0][out_display_max == 1] = 0.85
+    rgb[1][out_display_max == 1] = 0.62
+    rgb[2][out_display_max == 1] = 0.35
+
+    rgb[0][out_display_max == 2] = 0.33
+    rgb[1][out_display_max == 2] = 0.33
+    rgb[2][out_display_max == 2] = 0.33
+    # rgb[:][out_display_max == 1] = torch.tensor([0,0.33,1.0])
+    # rgb[:][out_display_max == 2] = torch.tensor([0.33,0.33,0.33])
+    # mask = mask.cpu().detach()
+    # rgb = rgb * mask
     rgb = rgb.permute(1, 2, 0)
 
     # print(out_display[10:20,10:20,:])
 
     # TODO: take arg max of out_display
 
-    display = np.concatenate((in_display, out_display, rgb), axis=1)
-
+    display = np.concatenate((in_display, rgb), axis=1)
+    cv2.imwrite("../images/output.png", display * 255)
     cv2.imshow("window", display)
     cv2.waitKey(0)
