@@ -23,8 +23,10 @@ def create_config():
     config.in_channels = 5
     config.pad = 1
     config.conv_size = 3
-    config.out_channels = 3
+    config.out_channels_a = 3
+    config.out_channels_b = 15
 
     config.random_crop = True
+    config.overclustering = True
 
     return config
