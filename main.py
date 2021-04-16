@@ -187,19 +187,6 @@ def display_image():
 
 
 if __name__ == "__main__":
-    # with open("../annotations/stuff_train2017.json") as f:
-    #     annotations = json.load(f)
-    # ids = cocostuff_ids(annotations)
-    # ids = cocostuff3_ids(annotations)
-    # print(len(ids))
-    # cocostuff_clean(ids, annotations, "../datasets/train2017")
-
-    # transform_single_image("../datasets/val2017/000000001532.jpg")
-    # train()
-    # prep_data.cocostuff3_write_filenames()
-    # dataset = CocoStuff3Dataset(create_config(), "train")
-    # prep_data.cocostuff_crop()
-    # prep_data.cocostuff_clean_with_json(True)
+    train()
+    # evaluate()
     # display_image()
-    evaluate()
-    # test_loss()
