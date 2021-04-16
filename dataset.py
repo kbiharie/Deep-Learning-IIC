@@ -82,6 +82,7 @@ class CocoStuff3Dataset(torch.utils.data.Dataset):
 
     def __getitem__(self, id):
         image_path = self.data[id]["file"]
+        image_path = image_path.replace("datasets/", "datasetscopy/")
         if not os.path.exists(image_path):
             print(image_path)
         label_path = get_label_path(image_path)
