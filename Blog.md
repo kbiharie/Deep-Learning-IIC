@@ -15,13 +15,16 @@ The method used in the paper is novel clustering objective. The method is called
 It is a generic clustering algorithm that makes use of unlabeled images to train a randomly initialised neural network.
 First we will explain how IIC is used for clustering and afterwards how it is applied for image segmentation.
 
-As input, IIC takes unlabeled training images. The goal is to assign a class label to every training image. The number 
-of class labels is a hyperparameter. For training, an image pair is generated for every image by applying a random transformation.
-The random transformations consist of color jitter, flips, affine transformations and random crops. The objective then aims to
-assign both images from an image pair the same class probabilities.
+As input, IIC takes unlabeled training images. The goal is to assign class probabilities to every training image. 
+For training, an image pair is generated for every image by applying a random transformation.
+The random transformations consist of color jitter, flips, affine transformations and random crops.
+Both images are fed to the network and are assigned class probabilites. 
+The objective is to assign the same class probabilities to two images from the same image pair.
+If the network is capable of doing so, the it means the network is invariant to the random transformations.
 
-For image segmentation, we look at individual pixels instead of the full image. Every pixel is assigned class probabilities.
-The number of classes is a hyperparameter, which is 3 classes for the COCO-3-stuff dataset. Again, image pairs are generated for training. 
+For image segmentation, we look at individual pixels instead of the full image. Every single pixel is assigned class probabilities.
+The number of classes is a hyperparameter, which is 3 classes for the COCO-3-stuff dataset. Again, image pairs are generated for training.
+The image pairs are generated in the same manner as for clustering, so a transformation is applied to the whole image.
 However, the objective now becomes to assign the same class probabilities to corresponding pixels instead of corresponding images. 
 The loss is described as maximizing mutual information between the corresponding patches and can be calculated as:
 
@@ -29,10 +32,17 @@ $$
 max (\dfrac{1}{n|G||\Omega|} \sum_{i=1}^n \sum_{g \in G} \sum_{u \in \Omega} \Phi_u (x_i) \cdot [g^{-1} \Phi (g x_i)]_{u+t}^T)
 $$
 
+$n$ denotes the number of images. $G$ describes the pertubations in the image. Since we only consider image pairs containing the original
+image and a pertubation, $|G| = 1$. $\Omega$ describes all image patches in the image. $\Phi(x)$ calculates the class probabilities for input image $x$.
+$gx$ denotes the perturbation of $x$, while $g^{-1}$ describes the inverse pertubation.
+
+If an image $x$ is perturbed by flipping which results into $gx$, a pixel $x_{ij}$ does not correspond to the pixel $(gx)_{ij}$. To find the corresponding pixel,
+an inverse perturbation $g^{-1}x$ is used. For flipping, that is simply flipping the image back. Thus $x_{ij}$ corresponds to $(g^{-1}gx)_{ij}$ 
+and we can calculate the mutual information by comparing $(\Phi(x))_{ij}$ and $(g^{-1}\Phi(gx))_{ij}$.
+
 The architecture can be seen here. It consists of two convolutional blocks, followed by a max pooling, followed by 4 convolutional blocks.
 After that there are two heads which decide the number of output classes. 
-
-To increase the final accuracy, overclustering is used. The second head is added to the network which outputs 15 classes instead of just 3.
+To increase the final accuracy, overclustering is used. The second head is outputs 15 classes instead of just 3.
 The idea is that if the network works better with 15 classes, it will also work better with 3 classes. Every epoch, both heads are trained with all of the data.
 
 
