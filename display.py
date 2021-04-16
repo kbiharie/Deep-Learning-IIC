@@ -6,10 +6,9 @@ from dataset import *
 def display_dataset_image(image, mask):
     if image.shape[0] == 4:
         image = image[:3, :, :]
-    # masked = image * mask.view(1, image.shape[1], image.shape[2])
+    masked = image * mask.view(1, image.shape[1], image.shape[2])
     image = image.permute(1, 2, 0)
-    # masked = masked.permute(1, 2, 0)
-    masked = None
+    masked = masked.permute(1, 2, 0)
     return image, masked
 
 
@@ -34,7 +33,6 @@ def display_output_image_and_output(image, mask):
 
     out_display = net(imgs)
     out_display = out_display[0]
-    print(out_display.shape)
     out_display = out_display * mask
     out_display = out_display.permute(1, 2, 0)
 
@@ -50,10 +48,6 @@ def display_output_image_and_output(image, mask):
     mask = mask.cpu().detach()
     rgb = rgb * mask
     rgb = rgb.permute(1, 2, 0)
-
-    # print(out_display[10:20,10:20,:])
-
-    # TODO: take arg max of out_display
 
     display = np.concatenate((in_display, out_display, rgb), axis=1)
 
