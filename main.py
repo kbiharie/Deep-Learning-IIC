@@ -92,8 +92,6 @@ def create_model():
             for step, (img1, img2, flip, mask) in enumerate(train_dataloader):
                 print("batch", step - 1, "took", time.time() - batch_time)
                 batch_time = time.time()
-                if head == 1 and step >= 150:
-                    break
                 img1 = img1.cuda()
                 img2 = img2.cuda()
                 mask = mask.cuda()
@@ -122,6 +120,8 @@ def create_model():
                 total_loss += loss
                 total_loss_no_lamb += loss_no_lamb
                 del loss, loss_no_lamb
+            if heads == 1:
+                continue
             to_log = {"type": "epoch_" + str(head), "loss": total_loss.item(), "epoch": epoch, "duration": time.time() - start_time,
                       "finished": time.strftime("%Y_%m_%d-%H_%M_%S")}
             log.append(to_log)
