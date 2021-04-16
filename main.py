@@ -51,7 +51,7 @@ def create_model():
     epochs = 30
     all_losses = []
 
-    log_file = time.strftime("../datasetscopy/logs/%Y_%m_%d-%H_%M_%S_log.json")
+    log_file = time.strftime(config.dataset_path + "logs/%Y_%m_%d-%H_%M_%S_log.json")
 
     log = []
     with open(log_file, "w") as w:
@@ -61,8 +61,8 @@ def create_model():
 
     # For every epoch
     for epoch in range(epochs):
-        epoch_model_path = "../datasetscopy/models/" + config.model_name + "_epoch_" + str(epoch) + ".pth"
-        optimizer_path = "../datasetscopy/models/" + config.model_name + "_epoch_" + str(epoch) + ".pt"
+        epoch_model_path = config.dataset_path + "models/" + config.model_name + "_epoch_" + str(epoch) + ".pth"
+        optimizer_path = config.dataset_path + "models/" + config.model_name + "_epoch_" + str(epoch) + ".pt"
         print("epoch", epoch)
         total_loss = 0
         total_loss_no_lamb = 0
@@ -80,8 +80,8 @@ def create_model():
                 headstr = "A"
             elif head == 1:
                 headstr = "B"
-            epoch_head_path = "../datasetscopy/models/" + config.model_name + "_epoch_" + str(epoch) + headstr + ".pth"
-            optimizer_head_path = "../datasetscopy/models/" + config.model_name + "_epoch_" + str(epoch) + headstr + ".pt"
+            epoch_head_path = config.dataset_path + "models/" + config.model_name + "_epoch_" + str(epoch) + headstr + ".pth"
+            optimizer_head_path = config.dataset_path + "models/" + config.model_name + "_epoch_" + str(epoch) + headstr + ".pt"
             if os.path.exists(epoch_head_path) and config.existing_model:
                 net.load_state_dict(torch.load(epoch_head_path))
                 if os.path.exists(optimizer_head_path):
@@ -125,8 +125,6 @@ def create_model():
                 total_loss += loss
                 total_loss_no_lamb += loss_no_lamb
                 del loss, loss_no_lamb
-            if heads == 1:
-                continue
             to_log = {"type": "epoch_" + str(head), "loss": total_loss.item(), "epoch": epoch, "duration": time.time() - start_time,
                       "finished": time.strftime("%Y_%m_%d-%H_%M_%S")}
             log.append(to_log)
@@ -136,13 +134,15 @@ def create_model():
             with open(log_file, "w") as w:
                 json.dump(old_log, w)
             print(total_loss.item())
+            if heads == 1:
+                continue
             torch.save(net.state_dict(), epoch_head_path)
             torch.save(optimizer.state_dict(), optimizer_head_path)
         torch.save(net.state_dict(), epoch_model_path)
         torch.save(optimizer.state_dict(), optimizer_path)
 
-    torch.save(net.state_dict(), "../datasetscopy/models/" + config.model_name + ".pth")
-    torch.save(optimizer.state_dict(), "../datasetscopy/models/" + config.model_name + ".pt")
+    torch.save(net.state_dict(), config.dataset_path + "models/" + config.model_name + ".pth")
+    torch.save(optimizer.state_dict(), config.dataset_path + "models/" + config.model_name + ".pt")
 
 
 def loss_fn(x1_outs, x2_outs, all_mask_img1=None, lamb=1.0):

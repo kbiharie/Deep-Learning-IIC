@@ -7,7 +7,7 @@ def create_config():
     config.output_k = 3
     config.gt_k = 3
     config.shuffle = True
-    config.filenames = "../datasets/filenamescoco.json"
+    config.filenames = "../datasets/filenamescocofew.json"
 
     config.existing_model = True
     config.num_workers = 2
@@ -27,6 +27,8 @@ def create_config():
     config.out_channels_b = 15
 
     config.random_crop = True
-    config.overclustering = True
+    config.overclustering = False
+
+    config.dataset_path = "../datasets/"
 
     return config
